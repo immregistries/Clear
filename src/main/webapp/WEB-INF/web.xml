@@ -9,10 +9,20 @@
         <servlet-name>clear</servlet-name>
         <servlet-class>org.immregistries.clear.servlet.ClearServlet</servlet-class>
     </servlet>
+
+    <servlet>
+        <servlet-name>email</servlet-name>
+        <servlet-class>org.immregistries.clear.servlet.EmailServlet</servlet-class>
+    </servlet>
     
     <servlet-mapping>
         <servlet-name>clear</servlet-name>
         <url-pattern>/clear</url-pattern>
+    </servlet-mapping>	 
+    
+    <servlet-mapping>
+        <servlet-name>email</servlet-name>
+        <url-pattern>/clear/email</url-pattern>
     </servlet-mapping>	 
 
 </web-app>

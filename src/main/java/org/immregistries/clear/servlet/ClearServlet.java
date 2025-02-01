@@ -12,7 +12,6 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpSession;
 
 import org.immregistries.clear.SoftwareVersion;
 import org.immregistries.clear.servlet.maps.ClearEntry;
@@ -311,7 +310,7 @@ public class ClearServlet extends HttpServlet {
         out.println("      <div class=\"w3-bar w3-light-grey\">");
         out.println("        <h1>CLEAR - Community Led Exchange and Aggregate Reporting</h1> ");
         out.println("        <a href=\"\" class=\"w3-bar-item w3-button\">Main</a> ");
-        out.println("        <a href=\"clear/map\" class=\"w3-bar-item w3-button\">Map</a> ");
+        out.println("        <a href=\"clear/email\" class=\"w3-bar-item w3-button\">Map</a> ");
         out.println("      </div>");
         out.println("    </header>");
         out.println("    <div class=\"w3-container\">");
