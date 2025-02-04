@@ -14,16 +14,19 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.immregistries.clear.SoftwareVersion;
-import org.immregistries.clear.servlet.maps.ClearEntry;
+import org.immregistries.clear.Model.EntryForInterop;
+import org.immregistries.clear.Model.HibernateUtil;
 import org.immregistries.clear.servlet.maps.Color;
 import org.immregistries.clear.servlet.maps.MapEntityMaker;
 import org.immregistries.clear.servlet.maps.MapPlace;
+
+import org.hibernate.Session;
 
 public class ClearServlet extends HttpServlet {
 
     String userIisName = "AZ";
     Calendar viewMonth = Calendar.getInstance();
-    private static Map<String, Map<String, ClearEntry>> clearIisMap = new HashMap<String, Map<String, ClearEntry>>();
+    private static Map<String, Map<String, EntryForInterop>> clearIisMap = new HashMap<String, Map<String, EntryForInterop>>();
 
     static {
 
@@ -110,15 +113,15 @@ public class ClearServlet extends HttpServlet {
             printHeader(out);
 
             for (String user : populationMap.keySet()) {
-                ClearEntry newEntry = new ClearEntry();
+                EntryForInterop newEntry = new EntryForInterop();
                 Random rand = new Random();
                 int userPopulation = populationMap.get(user);
                 newEntry.setCountUpdate(
                         (int) Math.round(rand.nextFloat() * (userPopulation / 2.0) + (userPopulation / 2.0)));
                 newEntry.setCountQuery(
                         (int) Math.round(rand.nextFloat() * (userPopulation / 2.0) + (userPopulation / 2.0)));
-                Map<String, ClearEntry> clearEntryDateMap = clearIisMap.get(user) == null
-                        ? new HashMap<String, ClearEntry>()
+                Map<String, EntryForInterop> clearEntryDateMap = clearIisMap.get(user) == null
+                        ? new HashMap<String, EntryForInterop>()
                         : clearIisMap.get(user);
                 clearIisMap.put(user, clearEntryDateMap);
                 clearEntryDateMap.put(sdfMonthYear.format(viewMonth.getTime()), newEntry);
@@ -144,11 +147,11 @@ public class ClearServlet extends HttpServlet {
                     int updateCount = Integer.parseInt(updateCountString);
                     int queryCount = Integer.parseInt(queryCountString);
 
-                    ClearEntry newEntry = new ClearEntry();
+                    EntryForInterop newEntry = new EntryForInterop();
                     newEntry.setCountUpdate(updateCount);
                     newEntry.setCountQuery(queryCount);
-                    Map<String, ClearEntry> clearEntryDateMap = clearIisMap.get(userIisName) == null
-                            ? new HashMap<String, ClearEntry>()
+                    Map<String, EntryForInterop> clearEntryDateMap = clearIisMap.get(userIisName) == null
+                            ? new HashMap<String, EntryForInterop>()
                             : clearIisMap.get(userIisName);
                     clearIisMap.put(userIisName, clearEntryDateMap);
                     clearEntryDateMap.put(sdfMonthYear.format(tmpCalendar.getTime()), newEntry);
@@ -189,7 +192,7 @@ public class ClearServlet extends HttpServlet {
                 if (clearIisMap.get(user) == null) {
                     continue;
                 }
-                for (ClearEntry clearEntry : clearIisMap.get(user).values()) {
+                for (EntryForInterop clearEntry : clearIisMap.get(user).values()) {
                     if (clearEntry == null) {
                         continue;
                     }
@@ -216,7 +219,7 @@ public class ClearServlet extends HttpServlet {
             try {
                 MapEntityMaker mapEntityMaker = new MapEntityMaker();
                 for (String testParticipant : clearIisMap.keySet()) {
-                    ClearEntry ce = clearIisMap.get(testParticipant).get(sdfMonthYear.format(viewMonth.getTime()));
+                    EntryForInterop ce = clearIisMap.get(testParticipant).get(sdfMonthYear.format(viewMonth.getTime()));
                     if (ce == null) {
                         out.println("<p>ce is null!</p>");
                         continue;
@@ -270,9 +273,9 @@ public class ClearServlet extends HttpServlet {
                 int updateCount = 0;
                 int queryCount = 0;
 
-                Map<String, ClearEntry> userEntry = clearIisMap.get(testParticipant);
+                Map<String, EntryForInterop> userEntry = clearIisMap.get(testParticipant);
                 if (userEntry != null) {
-                    ClearEntry monthEntry = userEntry.get(sdfMonthYear.format(viewMonth.getTime()));
+                    EntryForInterop monthEntry = userEntry.get(sdfMonthYear.format(viewMonth.getTime()));
                     if (monthEntry != null) {
                         updateCount = monthEntry.getCountUpdate();
                         queryCount = monthEntry.getCountQuery();
@@ -285,6 +288,19 @@ public class ClearServlet extends HttpServlet {
                 out.println("      </tr>");
             }
             out.println("   </table>");
+
+            Session session = HibernateUtil.getSessionFactory().openSession();
+            session.beginTransaction();
+
+            //Add new EntryForInterop object
+            EntryForInterop efi = new EntryForInterop();
+            efi.setCountUpdate(lowestUpdateCount);
+            efi.setCountQuery(4);
+
+            session.save(efi);
+
+            session.getTransaction().commit();
+            HibernateUtil.shutdown();
 
             System.out.println("--> printing footer");
             printFooter(out);
@@ -310,7 +326,7 @@ public class ClearServlet extends HttpServlet {
         out.println("      <div class=\"w3-bar w3-light-grey\">");
         out.println("        <h1>CLEAR - Community Led Exchange and Aggregate Reporting</h1> ");
         out.println("        <a href=\"\" class=\"w3-bar-item w3-button\">Main</a> ");
-        out.println("        <a href=\"clear/email\" class=\"w3-bar-item w3-button\">Map</a> ");
+        out.println("        <a href=\"clear/email\" class=\"w3-bar-item w3-button\">Mail</a> ");
         out.println("      </div>");
         out.println("    </header>");
         out.println("    <div class=\"w3-container\">");
