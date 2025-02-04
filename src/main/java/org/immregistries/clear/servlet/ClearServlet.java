@@ -15,11 +15,10 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.immregistries.clear.SoftwareVersion;
 import org.immregistries.clear.model.EntryForInterop;
-import org.immregistries.clear.model.HibernateUtil;
 import org.immregistries.clear.servlet.maps.Color;
 import org.immregistries.clear.servlet.maps.MapEntityMaker;
 import org.immregistries.clear.servlet.maps.MapPlace;
-
+import org.immregistries.clear.utils.HibernateUtil;
 import org.hibernate.Session;
 
 public class ClearServlet extends HttpServlet {
@@ -112,6 +111,11 @@ public class ClearServlet extends HttpServlet {
             System.out.println("--> printing header");
             printHeader(out);
 
+            Class.forName("org.immregistries.clear.model.EntryForInterop");
+
+            Session session = HibernateUtil.getSessionFactory().openSession();
+            session.beginTransaction();
+
             for (String user : populationMap.keySet()) {
                 EntryForInterop newEntry = new EntryForInterop();
                 Random rand = new Random();
@@ -125,7 +129,11 @@ public class ClearServlet extends HttpServlet {
                         : clearIisMap.get(user);
                 clearIisMap.put(user, clearEntryDateMap);
                 clearEntryDateMap.put(sdfMonthYear.format(viewMonth.getTime()), newEntry);
+                session.save(newEntry);
             }
+
+            session.getTransaction().commit();
+            //HibernateUtil.shutdown();
 
             {
                 Calendar tmpCalendar = Calendar.getInstance();
@@ -288,19 +296,6 @@ public class ClearServlet extends HttpServlet {
                 out.println("      </tr>");
             }
             out.println("   </table>");
-
-            Session session = HibernateUtil.getSessionFactory().openSession();
-            session.beginTransaction();
-
-            // Add new EntryForInterop object
-            EntryForInterop efi = new EntryForInterop();
-            efi.setCountUpdate(lowestUpdateCount);
-            efi.setCountQuery(4);
-
-            session.save(efi);
-
-            session.getTransaction().commit();
-            HibernateUtil.shutdown();
 
             System.out.println("--> printing footer");
             printFooter(out);

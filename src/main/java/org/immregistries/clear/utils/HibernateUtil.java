@@ -1,4 +1,4 @@
-package org.immregistries.clear.model;
+package org.immregistries.clear.utils;
 
 import org.hibernate.SessionFactory;
 import org.hibernate.boot.Metadata;
@@ -13,7 +13,7 @@ public class HibernateUtil {
 		try {
 			if (sessionFactory == null) {
 				StandardServiceRegistry standardRegistry = new StandardServiceRegistryBuilder()
-						.configure("/org/immregistries/clear/Model/hibernate.cfg.xml").build();
+						.configure("hibernate.cfg.xml").build();
 
 				Metadata metaData = new MetadataSources(standardRegistry)
 						.getMetadataBuilder()
