@@ -14,8 +14,8 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.immregistries.clear.SoftwareVersion;
-import org.immregistries.clear.Model.EntryForInterop;
-import org.immregistries.clear.Model.HibernateUtil;
+import org.immregistries.clear.model.EntryForInterop;
+import org.immregistries.clear.model.HibernateUtil;
 import org.immregistries.clear.servlet.maps.Color;
 import org.immregistries.clear.servlet.maps.MapEntityMaker;
 import org.immregistries.clear.servlet.maps.MapPlace;
@@ -292,7 +292,7 @@ public class ClearServlet extends HttpServlet {
             Session session = HibernateUtil.getSessionFactory().openSession();
             session.beginTransaction();
 
-            //Add new EntryForInterop object
+            // Add new EntryForInterop object
             EntryForInterop efi = new EntryForInterop();
             efi.setCountUpdate(lowestUpdateCount);
             efi.setCountQuery(4);

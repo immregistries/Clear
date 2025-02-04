@@ -1,4 +1,4 @@
-package org.immregistries.clear.Model;
+package org.immregistries.clear.model;
 
 import java.util.Date;
 

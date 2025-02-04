@@ -1,4 +1,4 @@
-package org.immregistries.clear.Model;
+package org.immregistries.clear.model;
 
 import java.util.Date;
 
@@ -38,7 +38,7 @@ public class Jurisdiction {
     public void setDisplayLabel(String displayLabel) {
         this.displayLabel = displayLabel;
     }
-    
+
     public String getMapLink() {
         return mapLink;
     }
