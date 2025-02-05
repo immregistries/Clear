@@ -113,40 +113,51 @@ public class ClearServlet extends HttpServlet {
             System.out.println("--> printing header");
             printHeader(out);
 
-            Class.forName("org.immregistries.clear.model.EntryForInterop");
-
+            
             Session session = HibernateUtil.getSessionFactory().openSession();
-            session.beginTransaction();
+            
+            boolean clickedResetButton = req.getParameter("resetButton") != null ? true : false;
+            if(clickedResetButton) {
+                session.beginTransaction();
+                session.createNativeQuery("TRUNCATE TABLE EntryForInterop").executeUpdate();
+                session.createNativeQuery("TRUNCATE TABLE Contact").executeUpdate();
+                session.createNativeQuery("TRUNCATE TABLE Jurisdiction").executeUpdate();
+                session.getTransaction().commit();
 
-            //create fake jurisdictions
-            for (String user : populationMap.keySet()) {
-                Jurisdiction newJur = new Jurisdiction();
-                newJur.setMapLink(user);
-                newJur.setDisplayLabel(user);
-                session.save(newJur);
+                //create fake jurisdictions
+                session.beginTransaction();
+
+                for (String user : populationMap.keySet()) {
+                    Jurisdiction newJur = new Jurisdiction();
+                    newJur.setMapLink(user);
+                    newJur.setDisplayLabel(user);
+                    session.save(newJur);
+                }
+                session.getTransaction().commit();
+
+                //get and randomize all jurisdiction numbers
+                session.beginTransaction();
+                out.println("<p> randomizing all numbers</p>");
+                Query<Jurisdiction> jurisdictionQuery = session.createQuery("FROM Jurisdiction", Jurisdiction.class);
+
+                for (Jurisdiction jur : jurisdictionQuery.list()) {
+                    EntryForInterop newEntry = new EntryForInterop();
+                    Random rand = new Random();
+                    int userPopulation = populationMap.get(jur.getMapLink());
+                    newEntry.setCountUpdate(
+                            (int) Math.round(rand.nextFloat() * (userPopulation / 2.0) + (userPopulation / 2.0)));
+                    newEntry.setCountQuery(
+                            (int) Math.round(rand.nextFloat() * (userPopulation / 2.0) + (userPopulation / 2.0)));
+                    newEntry.setReportingPeriod(viewMonth.getTime());
+                    newEntry.setJurisdictionId(jur.getJurisdictionId());
+                    newEntry.setContactId(0);
+                    session.save(newEntry);
+                }
+                session.getTransaction().commit();
             }
-
-            //get and randomize all jurisdiction numbers
-            Query<Jurisdiction> jurisdictionQuery = session.createQuery("FROM Jurisdiction", Jurisdiction.class);
-
-            for (Jurisdiction jur : jurisdictionQuery.list()) {
-                EntryForInterop newEntry = new EntryForInterop();
-                Random rand = new Random();
-                int userPopulation = populationMap.get(jur.getMapLink());
-                newEntry.setCountUpdate(
-                        (int) Math.round(rand.nextFloat() * (userPopulation / 2.0) + (userPopulation / 2.0)));
-                newEntry.setCountQuery(
-                        (int) Math.round(rand.nextFloat() * (userPopulation / 2.0) + (userPopulation / 2.0)));
-                newEntry.setReportingPeriod(viewMonth.getTime());
-                newEntry.setJurisdictionId(jur.getJurisdictionId());
-                newEntry.setContactId(0);
-                session.save(newEntry);
-            }
-
-            session.getTransaction().commit();
-            //HibernateUtil.shutdown();
 
             {
+                session.beginTransaction();
                 Calendar tmpCalendar = Calendar.getInstance();
                 tmpCalendar.add(Calendar.YEAR, -2);
                 for (int i = 0; i < 25; i++) {
@@ -169,8 +180,16 @@ public class ClearServlet extends HttpServlet {
                     EntryForInterop newEntry = new EntryForInterop();
                     newEntry.setCountUpdate(updateCount);
                     newEntry.setCountQuery(queryCount);
+                    newEntry.setReportingPeriod(tmpCalendar.getTime());
 
+                    Query<Jurisdiction> jq = session.createQuery("FROM Jurisdiction WHERE mapLink IS '" + userIisName + "'", Jurisdiction.class);
+                    if(jq != null) {
+                        Jurisdiction jur = jq.list().get(0);
+                        newEntry.setJurisdictionId(jur.getJurisdictionId());
+                        session.save(newEntry);
+                    }
                 }
+                session.getTransaction().commit();
             }
 
             out.println("<h1> " + userIisName + " IIS</h3>");
@@ -200,35 +219,35 @@ public class ClearServlet extends HttpServlet {
             out.println("</form>");
 
             // get highest and lowest test participant numbers
-            int highestUpdateCount = -1;
-            int lowestUpdateCount = -1;
+            int highestDisplayCount = -1;
+            int lowestDisplayCount = -1;
 
             Query<EntryForInterop> allEntriesQuery = session.createQuery("FROM EntryForInterop", EntryForInterop.class);
             List<EntryForInterop> allEntries = allEntriesQuery.list();
 
             for (EntryForInterop efi : allEntries) {
-                if(sdfMonthYear.format(efi.getReportingPeriod()) != sdfMonthYear.format(viewMonth.getTime())) {
+                if(!sdfMonthYear.format(efi.getReportingPeriod()).equals(sdfMonthYear.format(viewMonth.getTime()))) {
                     continue;
                 }
-                int updateCount = efi.getCountUpdate();
-                if (updateCount > highestUpdateCount || highestUpdateCount == -1) {
-                    highestUpdateCount = updateCount;
+                int displayCount = efi.getCountUpdate();
+                if (displayCount > highestDisplayCount || highestDisplayCount == -1) {
+                    highestDisplayCount = displayCount;
                 }
-                if (updateCount < lowestUpdateCount || lowestUpdateCount == -1) {
-                    lowestUpdateCount = updateCount;
+                if (displayCount < lowestDisplayCount || lowestDisplayCount == -1) {
+                    lowestDisplayCount = displayCount;
                 }
                 
             }
 
-            int lowerBorder = (highestUpdateCount - lowestUpdateCount) / 3;
+            int lowerBorder = (highestDisplayCount - lowestDisplayCount) / 3;
             int upperBorder = lowerBorder * 2;
 
-            if (highestUpdateCount == -1 || lowestUpdateCount == -1) {
+            if (highestDisplayCount == -1 || lowestDisplayCount == -1) {
                 upperBorder = 0;
                 lowerBorder = 0;
             }
-            out.println("<p> highest update count: " + highestUpdateCount + "</p>");
-            out.println("<p> lowest update count: " + lowestUpdateCount + "</p>");
+            out.println("<p> highest update count: " + highestDisplayCount + "</p>");
+            out.println("<p> lowest update count: " + lowestDisplayCount + "</p>");
 
             try {
                 MapEntityMaker mapEntityMaker = new MapEntityMaker();
@@ -282,14 +301,19 @@ public class ClearServlet extends HttpServlet {
             out.println("          <th>Queries</th>");
             out.println("      </tr>");
             for (EntryForInterop efi : allEntries) {
-
+                Query<Jurisdiction> jq = session.createQuery("FROM Jurisdiction WHERE JurisdictionId IS " + efi.getJurisdictionId(), Jurisdiction.class);
+                Jurisdiction jurisdiction = jq.list().get(0);
                 out.println("      <tr>");
-                out.println("           <td>" + efi.getJurisdictionId() + "</td>");
-                out.println("           <td><p>" + efi.getCountUpdate() + "</p></td>");
-                out.println("           <td><p>" + efi.getCountQuery() + "</p></td>");
+                out.println("           <td>" + jurisdiction.getDisplayLabel() + "</td>");
+                out.println("           <td>" + efi.getCountUpdate() + "</td>");
+                out.println("           <td>" + efi.getCountQuery() + "</td>");
                 out.println("      </tr>");
             }
             out.println("   </table>");
+
+            out.println("<form>");
+            out.println("   <input class=\"w3-button\" type=\"submit\" name=\"resetButton\" value=\"reset database\">");
+            out.println("</form>");
 
             System.out.println("--> printing footer");
             printFooter(out);
@@ -322,7 +346,7 @@ public class ClearServlet extends HttpServlet {
     }
 
     protected void printFooter(PrintWriter out) {
-        out.println("  </div>");
+        out.println("   </div>");
         out.println("  <div class=\"w3-container w3-green\">");
         out.println("      <p>Step Into CDSi " + SoftwareVersion.VERSION + " - ");
         out.println(
