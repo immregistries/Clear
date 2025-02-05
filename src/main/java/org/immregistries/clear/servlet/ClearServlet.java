@@ -5,6 +5,7 @@ import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
@@ -15,17 +16,18 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.immregistries.clear.SoftwareVersion;
 import org.immregistries.clear.model.EntryForInterop;
+import org.immregistries.clear.model.Jurisdiction;
 import org.immregistries.clear.servlet.maps.Color;
 import org.immregistries.clear.servlet.maps.MapEntityMaker;
 import org.immregistries.clear.servlet.maps.MapPlace;
 import org.immregistries.clear.utils.HibernateUtil;
 import org.hibernate.Session;
+import org.hibernate.query.Query;
 
 public class ClearServlet extends HttpServlet {
 
     String userIisName = "AZ";
     Calendar viewMonth = Calendar.getInstance();
-    private static Map<String, Map<String, EntryForInterop>> clearIisMap = new HashMap<String, Map<String, EntryForInterop>>();
 
     static {
 
@@ -116,19 +118,28 @@ public class ClearServlet extends HttpServlet {
             Session session = HibernateUtil.getSessionFactory().openSession();
             session.beginTransaction();
 
+            //create fake jurisdictions
             for (String user : populationMap.keySet()) {
+                Jurisdiction newJur = new Jurisdiction();
+                newJur.setMapLink(user);
+                newJur.setDisplayLabel(user);
+                session.save(newJur);
+            }
+
+            //get and randomize all jurisdiction numbers
+            Query<Jurisdiction> jurisdictionQuery = session.createQuery("FROM Jurisdiction", Jurisdiction.class);
+
+            for (Jurisdiction jur : jurisdictionQuery.list()) {
                 EntryForInterop newEntry = new EntryForInterop();
                 Random rand = new Random();
-                int userPopulation = populationMap.get(user);
+                int userPopulation = populationMap.get(jur.getMapLink());
                 newEntry.setCountUpdate(
                         (int) Math.round(rand.nextFloat() * (userPopulation / 2.0) + (userPopulation / 2.0)));
                 newEntry.setCountQuery(
                         (int) Math.round(rand.nextFloat() * (userPopulation / 2.0) + (userPopulation / 2.0)));
-                Map<String, EntryForInterop> clearEntryDateMap = clearIisMap.get(user) == null
-                        ? new HashMap<String, EntryForInterop>()
-                        : clearIisMap.get(user);
-                clearIisMap.put(user, clearEntryDateMap);
-                clearEntryDateMap.put(sdfMonthYear.format(viewMonth.getTime()), newEntry);
+                newEntry.setReportingPeriod(viewMonth.getTime());
+                newEntry.setJurisdictionId(jur.getJurisdictionId());
+                newEntry.setContactId(0);
                 session.save(newEntry);
             }
 
@@ -158,11 +169,7 @@ public class ClearServlet extends HttpServlet {
                     EntryForInterop newEntry = new EntryForInterop();
                     newEntry.setCountUpdate(updateCount);
                     newEntry.setCountQuery(queryCount);
-                    Map<String, EntryForInterop> clearEntryDateMap = clearIisMap.get(userIisName) == null
-                            ? new HashMap<String, EntryForInterop>()
-                            : clearIisMap.get(userIisName);
-                    clearIisMap.put(userIisName, clearEntryDateMap);
-                    clearEntryDateMap.put(sdfMonthYear.format(tmpCalendar.getTime()), newEntry);
+
                 }
             }
 
@@ -196,22 +203,21 @@ public class ClearServlet extends HttpServlet {
             int highestUpdateCount = -1;
             int lowestUpdateCount = -1;
 
-            for (String user : clearIisMap.keySet()) {
-                if (clearIisMap.get(user) == null) {
+            Query<EntryForInterop> allEntriesQuery = session.createQuery("FROM EntryForInterop", EntryForInterop.class);
+            List<EntryForInterop> allEntries = allEntriesQuery.list();
+
+            for (EntryForInterop efi : allEntries) {
+                if(sdfMonthYear.format(efi.getReportingPeriod()) != sdfMonthYear.format(viewMonth.getTime())) {
                     continue;
                 }
-                for (EntryForInterop clearEntry : clearIisMap.get(user).values()) {
-                    if (clearEntry == null) {
-                        continue;
-                    }
-                    int updateCount = clearEntry.getCountUpdate();
-                    if (updateCount > highestUpdateCount || highestUpdateCount == -1) {
-                        highestUpdateCount = updateCount;
-                    }
-                    if (updateCount < lowestUpdateCount || lowestUpdateCount == -1) {
-                        lowestUpdateCount = updateCount;
-                    }
+                int updateCount = efi.getCountUpdate();
+                if (updateCount > highestUpdateCount || highestUpdateCount == -1) {
+                    highestUpdateCount = updateCount;
                 }
+                if (updateCount < lowestUpdateCount || lowestUpdateCount == -1) {
+                    lowestUpdateCount = updateCount;
+                }
+                
             }
 
             int lowerBorder = (highestUpdateCount - lowestUpdateCount) / 3;
@@ -226,15 +232,13 @@ public class ClearServlet extends HttpServlet {
 
             try {
                 MapEntityMaker mapEntityMaker = new MapEntityMaker();
-                for (String testParticipant : clearIisMap.keySet()) {
-                    EntryForInterop ce = clearIisMap.get(testParticipant).get(sdfMonthYear.format(viewMonth.getTime()));
-                    if (ce == null) {
-                        out.println("<p>ce is null!</p>");
-                        continue;
-                    }
-                    int displayCount = ce.getCountUpdate();
 
-                    MapPlace mapPlace = new MapPlace(testParticipant);
+                for (EntryForInterop efi : allEntries) {
+                    Query<Jurisdiction> jq = session.createQuery("FROM Jurisdiction WHERE JurisdictionId IS " + efi.getJurisdictionId(), Jurisdiction.class);
+                    Jurisdiction jurisdiction = jq.list().get(0);
+                    int displayCount = efi.getCountUpdate();
+
+                    MapPlace mapPlace = new MapPlace(jurisdiction.getMapLink());
 
                     mapPlace.setFillerColor(Color.DEFAULT);
                     if (displayCount < lowerBorder) {
@@ -277,22 +281,12 @@ public class ClearServlet extends HttpServlet {
             out.println("          <th>Updates</th>");
             out.println("          <th>Queries</th>");
             out.println("      </tr>");
-            for (String testParticipant : populationMap.keySet()) {
-                int updateCount = 0;
-                int queryCount = 0;
+            for (EntryForInterop efi : allEntries) {
 
-                Map<String, EntryForInterop> userEntry = clearIisMap.get(testParticipant);
-                if (userEntry != null) {
-                    EntryForInterop monthEntry = userEntry.get(sdfMonthYear.format(viewMonth.getTime()));
-                    if (monthEntry != null) {
-                        updateCount = monthEntry.getCountUpdate();
-                        queryCount = monthEntry.getCountQuery();
-                    }
-                }
                 out.println("      <tr>");
-                out.println("           <td>" + testParticipant + "</td>");
-                out.println("           <td><p>" + updateCount + "</p></td>");
-                out.println("           <td><p>" + queryCount + "</p></td>");
+                out.println("           <td>" + efi.getJurisdictionId() + "</td>");
+                out.println("           <td><p>" + efi.getCountUpdate() + "</p></td>");
+                out.println("           <td><p>" + efi.getCountQuery() + "</p></td>");
                 out.println("      </tr>");
             }
             out.println("   </table>");

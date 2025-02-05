@@ -12,7 +12,7 @@ import javax.persistence.Table;
 import org.hibernate.annotations.OptimisticLockType;
 
 @Entity
-@org.hibernate.annotations.Entity(optimisticLock = OptimisticLockType.ALL)
+@org.hibernate.annotations.Entity(optimisticLock = OptimisticLockType.ALL, dynamicUpdate = true)
 @Table(name = "Jurisdiction")
 public class Jurisdiction {
 
