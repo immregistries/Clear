@@ -182,12 +182,22 @@ public class ClearServlet extends HttpServlet {
                     newEntry.setCountQuery(queryCount);
                     newEntry.setReportingPeriod(tmpCalendar.getTime());
 
-                    Query<Jurisdiction> jq = session.createQuery("FROM Jurisdiction WHERE mapLink IS '" + userIisName + "'", Jurisdiction.class);
-                    if(jq != null) {
-                        Jurisdiction jur = jq.list().get(0);
+                    Query<Jurisdiction> jq = session.createQuery("FROM Jurisdiction WHERE mapLink = :jurName", Jurisdiction.class);
+                    jq.setParameter("jurName", userIisName);
+                    Jurisdiction jur = jq.list().get(0);
+                    if(jur != null) {
                         newEntry.setJurisdictionId(jur.getJurisdictionId());
-                        session.save(newEntry);
+
+                        EntryForInterop entryExists = session.createNativeQuery("FROM EntryForInterop WHERE jurisdictionId = :jurId AND reportingPeriod = :date", EntryForInterop.class).setParameter("jurId", jur.getJurisdictionId()).setParameter("date", tmpCalendar.getTime()).uniqueResult();
+                        if(entryExists == null) {
+                            session.save(newEntry);
+                        } else {
+                            entryExists = newEntry;
+                            session.update(entryExists);
+                        }
                     }
+
+                    
                 }
                 session.getTransaction().commit();
             }
@@ -253,7 +263,8 @@ public class ClearServlet extends HttpServlet {
                 MapEntityMaker mapEntityMaker = new MapEntityMaker();
 
                 for (EntryForInterop efi : allEntries) {
-                    Query<Jurisdiction> jq = session.createQuery("FROM Jurisdiction WHERE JurisdictionId IS " + efi.getJurisdictionId(), Jurisdiction.class);
+                    Query<Jurisdiction> jq = session.createQuery("FROM Jurisdiction WHERE JurisdictionId IS :jurId", Jurisdiction.class);
+                    jq.setParameter("jurId", efi.getJurisdictionId());
                     Jurisdiction jurisdiction = jq.list().get(0);
                     int displayCount = efi.getCountUpdate();
 
@@ -301,7 +312,8 @@ public class ClearServlet extends HttpServlet {
             out.println("          <th>Queries</th>");
             out.println("      </tr>");
             for (EntryForInterop efi : allEntries) {
-                Query<Jurisdiction> jq = session.createQuery("FROM Jurisdiction WHERE JurisdictionId IS " + efi.getJurisdictionId(), Jurisdiction.class);
+                Query<Jurisdiction> jq = session.createQuery("FROM Jurisdiction WHERE JurisdictionId IS :jurId", Jurisdiction.class);
+                jq.setParameter("jurId", efi.getJurisdictionId());
                 Jurisdiction jurisdiction = jq.list().get(0);
                 out.println("      <tr>");
                 out.println("           <td>" + jurisdiction.getDisplayLabel() + "</td>");
