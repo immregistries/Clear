@@ -5,9 +5,12 @@ import java.util.Date;
 import java.io.Serializable;
 import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.FetchType;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
+import javax.persistence.JoinColumn;
+import javax.persistence.ManyToOne;
 import javax.persistence.Table;
 import org.hibernate.annotations.OptimisticLockType;
 
@@ -30,8 +33,9 @@ public class EntryForInterop {
     @Column(name = "reportingPeriod", nullable = false)
     private Date reportingPeriod = new Date();
 
-    @Column(name = "jurisdictionId", nullable = false)
-    private int jurisdictionId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "jurisdictionId")
+    private Jurisdiction jurisdiction;
 
     @Column(name = "contactId", nullable = false)
     private int contactId;
@@ -64,12 +68,12 @@ public class EntryForInterop {
         this.reportingPeriod = reportingPeriod;
     }
 
-    public int getJurisdictionId() {
-        return jurisdictionId;
+    public Jurisdiction getJurisdiction() {
+        return jurisdiction;
     }
 
-    public void setJurisdictionId(int jurisdictionId) {
-        this.jurisdictionId = jurisdictionId;
+    public void setJurisdiction(Jurisdiction jurisdiction) {
+        this.jurisdiction = jurisdiction;
     }
 
     public int getContactId() {

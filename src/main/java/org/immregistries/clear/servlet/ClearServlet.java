@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,11 +23,20 @@ import org.immregistries.clear.servlet.maps.MapEntityMaker;
 import org.immregistries.clear.servlet.maps.MapPlace;
 import org.immregistries.clear.utils.HibernateUtil;
 import org.hibernate.Session;
+import org.hibernate.Transaction;
 import org.hibernate.query.Query;
 
 public class ClearServlet extends HttpServlet {
 
-    String userIisName = "AZ";
+    public static final String PARAM_JURISDICTION = "jurisdiction";
+
+    public static final String PARAM_VIEW = "view";
+    public static final String VIEW_MAP = "map";
+    public static final String VIEW_DATA = "data";
+
+    public static final String PARAM_ACTION = "action";
+    public static final String ACTION_SAVE = "Save";
+
     Calendar viewMonth = Calendar.getInstance();
 
     static {
@@ -101,241 +111,331 @@ public class ClearServlet extends HttpServlet {
     }
 
     @Override
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        doGet(req, resp);
+    }
+
+    @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
 
         SimpleDateFormat sdfMonthYear = new SimpleDateFormat("MMMM YYYY");
         resp.setContentType("text/html");
-        System.out.println("--> calling doGet");
+
+        String view = VIEW_DATA;
+        if (req.getParameter(PARAM_VIEW) != null) {
+            view = req.getParameter(PARAM_VIEW);
+        }
+        String selectedJurisdictionId = "AZ";
+        Jurisdiction selectedJurisdiction = null;
+        if (req.getParameter(PARAM_JURISDICTION) != null) {
+            selectedJurisdictionId = req.getParameter(PARAM_JURISDICTION);
+        }
+        Session session = HibernateUtil.getSessionFactory().openSession();
 
         PrintWriter out = new PrintWriter(resp.getOutputStream());
         try {
-            System.out.println("--> printing header");
-            printHeader(out);
 
-            
-            Session session = HibernateUtil.getSessionFactory().openSession();
-            
+            String message = null;
+            Query<Jurisdiction> jurisdictionList;
+            {
+                jurisdictionList = getJurisdictionList(session);
+                if (jurisdictionList.list().size() == 0) {
+                    message = resetDatabase(session);
+                    jurisdictionList = getJurisdictionList(session);
+                }
+                for (Jurisdiction j : jurisdictionList.list()) {
+                    if (j.getMapLink().equals(selectedJurisdictionId)) {
+                        selectedJurisdiction = j;
+                    }
+                }
+            }
+
             boolean clickedResetButton = req.getParameter("resetButton") != null ? true : false;
-            if(clickedResetButton) {
-                session.beginTransaction();
-                session.createNativeQuery("TRUNCATE TABLE EntryForInterop").executeUpdate();
-                session.createNativeQuery("TRUNCATE TABLE Contact").executeUpdate();
-                session.createNativeQuery("TRUNCATE TABLE Jurisdiction").executeUpdate();
-                session.getTransaction().commit();
-
-                //create fake jurisdictions
-                session.beginTransaction();
-
-                for (String user : populationMap.keySet()) {
-                    Jurisdiction newJur = new Jurisdiction();
-                    newJur.setMapLink(user);
-                    newJur.setDisplayLabel(user);
-                    session.save(newJur);
-                }
-                session.getTransaction().commit();
-
-                //get and randomize all jurisdiction numbers
-                session.beginTransaction();
-                out.println("<p> randomizing all numbers</p>");
-                Query<Jurisdiction> jurisdictionQuery = session.createQuery("FROM Jurisdiction", Jurisdiction.class);
-
-                for (Jurisdiction jur : jurisdictionQuery.list()) {
-                    EntryForInterop newEntry = new EntryForInterop();
-                    Random rand = new Random();
-                    int userPopulation = populationMap.get(jur.getMapLink());
-                    newEntry.setCountUpdate(
-                            (int) Math.round(rand.nextFloat() * (userPopulation / 2.0) + (userPopulation / 2.0)));
-                    newEntry.setCountQuery(
-                            (int) Math.round(rand.nextFloat() * (userPopulation / 2.0) + (userPopulation / 2.0)));
-                    newEntry.setReportingPeriod(viewMonth.getTime());
-                    newEntry.setJurisdictionId(jur.getJurisdictionId());
-                    newEntry.setContactId(0);
-                    session.save(newEntry);
-                }
-                session.getTransaction().commit();
+            if (clickedResetButton) {
+                message = resetDatabase(session);
             }
 
-            {
-                session.beginTransaction();
-                Calendar tmpCalendar = Calendar.getInstance();
-                tmpCalendar.add(Calendar.YEAR, -2);
-                for (int i = 0; i < 25; i++) {
-                    SimpleDateFormat sdfRowName = new SimpleDateFormat("MMMMYYYY");
-                    tmpCalendar.add(Calendar.MONTH, 1);
+            String action = req.getParameter(PARAM_ACTION);
+            if (action != null) {
+                if (action.equals(ACTION_SAVE)) {
+                    HashMap<String, EntryForInterop> entryForInteropMap = getEntryForInteropMap(selectedJurisdiction,
+                            session);
 
-                    String rowName = sdfRowName.format(tmpCalendar.getTime());
-                    String updateCountString = req.getParameter(rowName + "-Updates");
-                    String queryCountString = req.getParameter(rowName + "-Queries");
-
-                    if (updateCountString == null || updateCountString == "") {
-                        continue;
-                    }
-                    if (queryCountString == null || queryCountString == "") {
-                        continue;
-                    }
-                    int updateCount = Integer.parseInt(updateCountString);
-                    int queryCount = Integer.parseInt(queryCountString);
-
-                    EntryForInterop newEntry = new EntryForInterop();
-                    newEntry.setCountUpdate(updateCount);
-                    newEntry.setCountQuery(queryCount);
-                    newEntry.setReportingPeriod(tmpCalendar.getTime());
-
-                    Query<Jurisdiction> jq = session.createQuery("FROM Jurisdiction WHERE mapLink = :jurName", Jurisdiction.class);
-                    jq.setParameter("jurName", userIisName);
-                    Jurisdiction jur = jq.list().get(0);
-                    if(jur != null) {
-                        newEntry.setJurisdictionId(jur.getJurisdictionId());
-
-                        EntryForInterop entryExists = session.createNativeQuery("FROM EntryForInterop WHERE jurisdictionId = :jurId AND reportingPeriod = :date", EntryForInterop.class).setParameter("jurId", jur.getJurisdictionId()).setParameter("date", tmpCalendar.getTime()).uniqueResult();
-                        if(entryExists == null) {
-                            session.save(newEntry);
-                        } else {
-                            entryExists = newEntry;
-                            session.update(entryExists);
+                    Calendar tmpCalendar = Calendar.getInstance();
+                    tmpCalendar.add(Calendar.YEAR, -2);
+                    tmpCalendar.set(Calendar.DAY_OF_MONTH, 1);
+                    int saveCount = 0;
+                    Transaction transaction = session.beginTransaction();
+                    for (int i = 0; i < 25; i++) {
+                        SimpleDateFormat sdfRowName = new SimpleDateFormat("MMMMYYYY");
+                        Date reportingPeriod = tmpCalendar.getTime();
+                        String rowName = sdfRowName.format(reportingPeriod);
+                        String countUpdateString = req.getParameter(rowName + "-Updates");
+                        String countQueryString = req.getParameter(rowName + "-Queries");
+                        int countUpdate = 0;
+                        if (countUpdateString != null && !countUpdateString.equals("")) {
+                            countUpdate = Integer.parseInt(countUpdateString);
                         }
+                        int countQuery = 0;
+                        if (countQueryString != null && !countQueryString.equals("")) {
+                            countQuery = Integer.parseInt(countQueryString);
+                        }
+
+                        EntryForInterop efi = entryForInteropMap.get(sdfRowName.format(reportingPeriod));
+                        if (efi != null) {
+                            efi.setCountUpdate(countUpdate);
+                            efi.setCountQuery(countQuery);
+                            session.update(efi);
+                            saveCount++;
+                        } else if (countUpdate > 0 || countQuery > 0) {
+                            EntryForInterop newEntry = new EntryForInterop();
+                            newEntry.setCountUpdate(countUpdate);
+                            newEntry.setCountQuery(countQuery);
+                            newEntry.setReportingPeriod(reportingPeriod);
+                            newEntry.setJurisdiction(selectedJurisdiction);
+                            session.save(newEntry);
+                            saveCount++;
+                        }
+                        tmpCalendar.add(Calendar.MONTH, 1);
                     }
-
-                    
-                }
-                session.getTransaction().commit();
-            }
-
-            out.println("<h1> " + userIisName + " IIS</h3>");
-            out.println("<form>");
-            out.println("   <table class=\"w3-table w3-striped\">");
-            out.println("      <tr>");
-            out.println("          <th>Month</th>");
-            out.println("          <th>Updates</th>");
-            out.println("          <th>Queries</th>");
-            out.println("      </tr>");
-            {
-                Calendar tmpCalendar = Calendar.getInstance();
-                tmpCalendar.add(Calendar.YEAR, -2);
-                for (int i = 0; i < 25; i++) {
-                    SimpleDateFormat sdfRowName = new SimpleDateFormat("MMMMYYYY");
-                    String rowName = sdfRowName.format(tmpCalendar.getTime());
-                    out.println("      <tr>");
-                    out.println("           <td>" + sdfMonthYear.format(tmpCalendar.getTime()) + "</td>");
-                    out.println("           <td><input type=\"number\" name=\"" + rowName + "-Updates" + "\"></td>");
-                    out.println("           <td><input type=\"number\" name=\"" + rowName + "-Queries" + "\"></td>");
-                    out.println("      </tr>");
-                    tmpCalendar.add(Calendar.MONTH, 1);
+                    transaction.commit();
+                    message = "Saved " + saveCount + " entries";
+                    view = VIEW_DATA;
                 }
             }
-            out.println("   </table>");
-            out.println("   <input class=\"w3-button\" type=\"submit\" value=\"Submit\">");
-            out.println("</form>");
 
-            // get highest and lowest test participant numbers
-            int highestDisplayCount = -1;
-            int lowestDisplayCount = -1;
-
-            Query<EntryForInterop> allEntriesQuery = session.createQuery("FROM EntryForInterop", EntryForInterop.class);
-            List<EntryForInterop> allEntries = allEntriesQuery.list();
-
-            for (EntryForInterop efi : allEntries) {
-                if(!sdfMonthYear.format(efi.getReportingPeriod()).equals(sdfMonthYear.format(viewMonth.getTime()))) {
-                    continue;
-                }
-                int displayCount = efi.getCountUpdate();
-                if (displayCount > highestDisplayCount || highestDisplayCount == -1) {
-                    highestDisplayCount = displayCount;
-                }
-                if (displayCount < lowestDisplayCount || lowestDisplayCount == -1) {
-                    lowestDisplayCount = displayCount;
-                }
-                
+            printHeader(out);
+            if (message != null) {
+                out.println("<p>" + message + "</p>");
             }
 
-            int lowerBorder = (highestDisplayCount - lowestDisplayCount) / 3;
-            int upperBorder = lowerBorder * 2;
+            if (view == VIEW_DATA) {
+                out.println("<h1> " + selectedJurisdiction.getDisplayLabel() + "</h3>");
+                HashMap<String, EntryForInterop> entryForInteropMap = getEntryForInteropMap(selectedJurisdiction,
+                        session);
+                out.println("<p>Found " + entryForInteropMap.size() + " entries already saved.</p>");
 
-            if (highestDisplayCount == -1 || lowestDisplayCount == -1) {
-                upperBorder = 0;
-                lowerBorder = 0;
+                out.println("<form action=\"clear\" method=\"post\">");
+                out.println("   <input type=\"hidden\" name=\"" + PARAM_VIEW + "\" value=\"" + VIEW_DATA + "\">");
+                out.println("   <input type=\"hidden\" name=\"" + PARAM_JURISDICTION + "\" value=\""
+                        + selectedJurisdictionId + "\">");
+                out.println("   <table class=\"w3-table w3-striped\">");
+                out.println("      <tr>");
+                out.println("          <th>Month</th>");
+                out.println("          <th>Updates</th>");
+                out.println("          <th>Queries</th>");
+                out.println("      </tr>");
+                {
+                    Calendar tmpCalendar = Calendar.getInstance();
+                    tmpCalendar.add(Calendar.YEAR, -2);
+                    tmpCalendar.set(Calendar.DAY_OF_MONTH, 1);
+                    for (int i = 0; i < 25; i++) {
+                        SimpleDateFormat sdfRowName = new SimpleDateFormat("MMMMYYYY");
+                        Date reportingPeriod = tmpCalendar.getTime();
+                        String rowName = sdfRowName.format(reportingPeriod);
+                        String countUpdate = "";
+                        String countQuery = "";
+                        EntryForInterop efi = entryForInteropMap.get(sdfRowName.format(reportingPeriod));
+                        if (efi != null) {
+                            countUpdate = "" + efi.getCountUpdate();
+                            countQuery = "" + efi.getCountQuery();
+                        }
+                        out.println("      <tr>");
+                        out.println("           <td>" + sdfMonthYear.format(tmpCalendar.getTime()) + "</td>");
+                        out.println(
+                                "           <td><input type=\"number\" name=\"" + rowName + "-Updates"
+                                        + "\" value=\"" + countUpdate + "\"></td>");
+                        out.println(
+                                "           <td><input type=\"number\" name=\"" + rowName + "-Queries"
+                                        + "\" value=\"" + countQuery + "\"></td>");
+                        out.println("      </tr>");
+                        tmpCalendar.add(Calendar.MONTH, 1);
+                    }
+                }
+                out.println("   </table>");
+                out.println("   <input class=\"w3-button\" type=\"submit\" name=\"" + PARAM_ACTION + "\" value=\""
+                        + ACTION_SAVE + "\">");
+                out.println("</form>");
             }
-            out.println("<p> highest update count: " + highestDisplayCount + "</p>");
-            out.println("<p> lowest update count: " + lowestDisplayCount + "</p>");
 
-            try {
-                MapEntityMaker mapEntityMaker = new MapEntityMaker();
+            if (view.equals(VIEW_MAP)) {
+
+                // get highest and lowest test participant numbers
+                int highestDisplayCount = -1;
+                int lowestDisplayCount = -1;
+
+                Query<EntryForInterop> allEntriesQuery = session.createQuery("FROM EntryForInterop",
+                        EntryForInterop.class);
+                List<EntryForInterop> allEntries = allEntriesQuery.list();
 
                 for (EntryForInterop efi : allEntries) {
-                    Query<Jurisdiction> jq = session.createQuery("FROM Jurisdiction WHERE JurisdictionId IS :jurId", Jurisdiction.class);
-                    jq.setParameter("jurId", efi.getJurisdictionId());
-                    Jurisdiction jurisdiction = jq.list().get(0);
+                    if (!sdfMonthYear.format(efi.getReportingPeriod())
+                            .equals(sdfMonthYear.format(viewMonth.getTime()))) {
+                        continue;
+                    }
                     int displayCount = efi.getCountUpdate();
-
-                    MapPlace mapPlace = new MapPlace(jurisdiction.getMapLink());
-
-                    mapPlace.setFillerColor(Color.DEFAULT);
-                    if (displayCount < lowerBorder) {
-                        mapPlace.setFillerColor(Color.MAP_LOWER);
-                    } else if (displayCount > upperBorder) {
-                        mapPlace.setFillerColor(Color.MAP_UPPER);
-                    } else {
-                        mapPlace.setFillerColor(Color.MAP_CENTER);
+                    if (displayCount > highestDisplayCount || highestDisplayCount == -1) {
+                        highestDisplayCount = displayCount;
+                    }
+                    if (displayCount < lowestDisplayCount || lowestDisplayCount == -1) {
+                        lowestDisplayCount = displayCount;
                     }
 
-                    mapEntityMaker.addMapPlace(mapPlace);
                 }
-                mapEntityMaker.setMapTitle("Map");
-                mapEntityMaker.setStatusTitle("Population");
-                mapEntityMaker.printMapWithKey(out);
-            } catch (Exception e) {
-                e.printStackTrace(out);
-            }
 
-            out.println("<input id=\"updatesRadio\" class=\"w3-button\" type=\"radio\" name=\"display_type\">");
-            out.println("<label for=\"updatesRadio\">Updates</label>");
-            out.println("<input id=\"queriesRadio\" class=\"w3-button\" type=\"radio\" name=\"display_type\">");
-            out.println("<label for=\"queriesRadio\">Queries</label>");
+                int lowerBorder = (highestDisplayCount - lowestDisplayCount) / 3;
+                int upperBorder = lowerBorder * 2;
 
-            out.println("<div class=\"w3-cell-row\">");
-            out.println("   <div class=\"w3-cell\">");
-            out.println("       <input class=\"w3-button\" type=\"button\" value=\"<-\">");
-            out.println("   </div>");
-            out.println("   <div class=\"w3-cell\">");
-            out.println("       <p>" + sdfMonthYear.format(viewMonth.getTime()) + "</p>");
-            out.println("   </div>");
-            out.println("   <div class=\"w3-cell\">");
-            out.println("       <input class=\"w3-button\" type=\"button\" value=\"->\">");
-            out.println("   </div>");
-            out.println("</div>");
+                if (highestDisplayCount == -1 || lowestDisplayCount == -1) {
+                    upperBorder = 0;
+                    lowerBorder = 0;
+                }
+                out.println("<p> highest update count: " + highestDisplayCount + "</p>");
+                out.println("<p> lowest update count: " + lowestDisplayCount + "</p>");
 
-            out.println("   <table class=\"w3-table w3-striped\">");
-            out.println("      <tr>");
-            out.println("          <th>User</th>");
-            out.println("          <th>Updates</th>");
-            out.println("          <th>Queries</th>");
-            out.println("      </tr>");
-            for (EntryForInterop efi : allEntries) {
-                Query<Jurisdiction> jq = session.createQuery("FROM Jurisdiction WHERE JurisdictionId IS :jurId", Jurisdiction.class);
-                jq.setParameter("jurId", efi.getJurisdictionId());
-                Jurisdiction jurisdiction = jq.list().get(0);
+                try {
+                    MapEntityMaker mapEntityMaker = new MapEntityMaker();
+
+                    for (EntryForInterop efi : allEntries) {
+                        Jurisdiction jurisdiction = efi.getJurisdiction();
+                        int displayCount = efi.getCountUpdate();
+
+                        MapPlace mapPlace = new MapPlace(jurisdiction.getMapLink());
+
+                        mapPlace.setFillerColor(Color.DEFAULT);
+                        if (displayCount < lowerBorder) {
+                            mapPlace.setFillerColor(Color.MAP_LOWER);
+                        } else if (displayCount > upperBorder) {
+                            mapPlace.setFillerColor(Color.MAP_UPPER);
+                        } else {
+                            mapPlace.setFillerColor(Color.MAP_CENTER);
+                        }
+
+                        mapEntityMaker.addMapPlace(mapPlace);
+                    }
+                    mapEntityMaker.setMapTitle("Map");
+                    mapEntityMaker.setStatusTitle("Population");
+                    mapEntityMaker.printMapWithKey(out);
+                } catch (Exception e) {
+                    e.printStackTrace(out);
+                }
+
+                out.println("<input id=\"updatesRadio\" class=\"w3-button\" type=\"radio\" name=\"display_type\">");
+                out.println("<label for=\"updatesRadio\">Updates</label>");
+                out.println("<input id=\"queriesRadio\" class=\"w3-button\" type=\"radio\" name=\"display_type\">");
+                out.println("<label for=\"queriesRadio\">Queries</label>");
+
+                out.println("<div class=\"w3-cell-row\">");
+                out.println("   <div class=\"w3-cell\">");
+                out.println("       <input class=\"w3-button\" type=\"button\" value=\"<-\">");
+                out.println("   </div>");
+                out.println("   <div class=\"w3-cell\">");
+                out.println("       <p>" + sdfMonthYear.format(viewMonth.getTime()) + "</p>");
+                out.println("   </div>");
+                out.println("   <div class=\"w3-cell\">");
+                out.println("       <input class=\"w3-button\" type=\"button\" value=\"->\">");
+                out.println("   </div>");
+                out.println("</div>");
+
+                out.println("   <table class=\"w3-table w3-striped\">");
                 out.println("      <tr>");
-                out.println("           <td>" + jurisdiction.getDisplayLabel() + "</td>");
-                out.println("           <td>" + efi.getCountUpdate() + "</td>");
-                out.println("           <td>" + efi.getCountQuery() + "</td>");
+                out.println("          <th>User</th>");
+                out.println("          <th>Updates</th>");
+                out.println("          <th>Queries</th>");
                 out.println("      </tr>");
+                for (EntryForInterop efi : allEntries) {
+                    Jurisdiction jurisdiction = efi.getJurisdiction();
+                    out.println("      <tr>");
+                    out.println("           <td>" + jurisdiction.getDisplayLabel() + "</td>");
+                    out.println("           <td>" + efi.getCountUpdate() + "</td>");
+                    out.println("           <td>" + efi.getCountQuery() + "</td>");
+                    out.println("      </tr>");
+                }
+                out.println("   </table>");
+                out.println("<form>");
+                out.println(
+                        "   <input class=\"w3-button\" type=\"submit\" name=\"resetButton\" value=\"reset database\">");
+                out.println("</form>");
+
             }
-            out.println("   </table>");
 
-            out.println("<form>");
-            out.println("   <input class=\"w3-button\" type=\"submit\" name=\"resetButton\" value=\"reset database\">");
-            out.println("</form>");
-
-            System.out.println("--> printing footer");
             printFooter(out);
         } catch (Exception e) {
-            System.out.println("--> exception!");
-            e.printStackTrace();
+            out.println("<h3>Exception</h3>");
+            out.println("<p>" + e.getMessage() + "</p>");
+            out.println("<pre>");
+            e.printStackTrace(out);
+            out.println("</pre>");
         } finally {
-            out.close();
-            System.out.println("--> finished doGet");
+            if (out != null) {
+                out.close();
+            }
+            if (session != null) {
+                session.close();
+            }
         }
+    }
+
+    private HashMap<String, EntryForInterop> getEntryForInteropMap(Jurisdiction selectedJurisdiction, Session session) {
+        SimpleDateFormat sdfRowName = new SimpleDateFormat("MMMMYYYY");
+        HashMap<String, EntryForInterop> entryForInteropMap = new HashMap<String, EntryForInterop>();
+        Query query = session.createQuery("from EntryForInterop where jurisdiction = :jurisdiction",
+                EntryForInterop.class);
+        query.setParameter("jurisdiction", selectedJurisdiction);
+        List<EntryForInterop> entryForInteropList = query.list();
+        for (EntryForInterop efi : entryForInteropList) {
+            entryForInteropMap.put(sdfRowName.format(efi.getReportingPeriod()), efi);
+        }
+        return entryForInteropMap;
+    }
+
+    private Query<Jurisdiction> getJurisdictionList(Session session) {
+        List<Jurisdiction> jurisdictionList;
+        Query<Jurisdiction> jq = session.createQuery("from Jurisdiction order by displayLabel", Jurisdiction.class);
+        jurisdictionList = jq.list();
+        return jq;
+    }
+
+    private String resetDatabase(Session session) {
+        String message;
+        session.beginTransaction();
+        session.createNativeQuery("TRUNCATE TABLE EntryForInterop").executeUpdate();
+        session.createNativeQuery("TRUNCATE TABLE Contact").executeUpdate();
+        // session.createNativeQuery("TRUNCATE TABLE Jurisdiction").executeUpdate();
+        session.getTransaction().commit();
+
+        // create fake jurisdictions
+        session.beginTransaction();
+
+        for (String user : populationMap.keySet()) {
+            Jurisdiction newJur = new Jurisdiction();
+            newJur.setMapLink(user);
+            newJur.setDisplayLabel(user);
+            session.save(newJur);
+        }
+        session.getTransaction().commit();
+
+        // get and randomize all jurisdiction numbers
+        session.beginTransaction();
+        message = "randomizing all numbers";
+        Query<Jurisdiction> jurisdictionQuery = session.createQuery("FROM Jurisdiction", Jurisdiction.class);
+
+        for (Jurisdiction jur : jurisdictionQuery.list()) {
+            EntryForInterop newEntry = new EntryForInterop();
+            Random rand = new Random();
+            int userPopulation = populationMap.get(jur.getMapLink());
+            newEntry.setCountUpdate(
+                    (int) Math.round(rand.nextFloat() * (userPopulation / 2.0) + (userPopulation / 2.0)));
+            newEntry.setCountQuery(
+                    (int) Math.round(rand.nextFloat() * (userPopulation / 2.0) + (userPopulation / 2.0)));
+            newEntry.setReportingPeriod(viewMonth.getTime());
+            newEntry.setJurisdiction(jur);
+            newEntry.setContactId(0);
+            session.save(newEntry);
+        }
+        session.getTransaction().commit();
+        return message;
     }
 
     protected void printHeader(PrintWriter out) {
@@ -350,7 +450,10 @@ public class ClearServlet extends HttpServlet {
         out.println("    <header class=\"w3-container w3-light-grey\">");
         out.println("      <div class=\"w3-bar w3-light-grey\">");
         out.println("        <h1>CLEAR - Community Led Exchange and Aggregate Reporting</h1> ");
-        out.println("        <a href=\"\" class=\"w3-bar-item w3-button\">Main</a> ");
+        out.println("        <a href=\"clear?" + PARAM_VIEW + "=" + VIEW_DATA
+                + "\" class=\"w3-bar-item w3-button\">Data</a> ");
+        out.println("        <a href=\"clear?" + PARAM_VIEW + "=" + VIEW_MAP
+                + "\" class=\"w3-bar-item w3-button\">Map</a> ");
         out.println("        <a href=\"clear/email\" class=\"w3-bar-item w3-button\">Mail</a> ");
         out.println("      </div>");
         out.println("    </header>");
