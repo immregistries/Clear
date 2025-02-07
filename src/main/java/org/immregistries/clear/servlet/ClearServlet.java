@@ -210,12 +210,13 @@ public class ClearServlet extends HttpServlet {
                 out.println("<p>" + message + "</p>");
             }
 
-            if (view == VIEW_DATA) {
+            if (view.equals(VIEW_DATA)) {
                 out.println("<h1> " + selectedJurisdiction.getDisplayLabel() + "</h3>");
                 HashMap<String, EntryForInterop> entryForInteropMap = getEntryForInteropMap(selectedJurisdiction,
                         session);
                 out.println("<p>Found " + entryForInteropMap.size() + " entries already saved.</p>");
 
+                out.println("<div class=\"w3-container\" style=\"width:50%\">");
                 out.println("<form action=\"clear\" method=\"post\">");
                 out.println("   <input type=\"hidden\" name=\"" + PARAM_VIEW + "\" value=\"" + VIEW_DATA + "\">");
                 out.println("   <input type=\"hidden\" name=\"" + PARAM_JURISDICTION + "\" value=\""
@@ -257,6 +258,7 @@ public class ClearServlet extends HttpServlet {
                 out.println("   <input class=\"w3-button\" type=\"submit\" name=\"" + PARAM_ACTION + "\" value=\""
                         + ACTION_SAVE + "\">");
                 out.println("</form>");
+                out.println("</div>");
             }
 
             if (view.equals(VIEW_MAP)) {
@@ -299,7 +301,11 @@ public class ClearServlet extends HttpServlet {
 
                     for (EntryForInterop efi : allEntries) {
                         Jurisdiction jurisdiction = efi.getJurisdiction();
+                        String displayType = req.getParameter("display_type");
                         int displayCount = efi.getCountUpdate();
+                        if(displayType != null && displayType.equals("Queries")) {
+                            displayCount = efi.getCountQuery();
+                        }
 
                         MapPlace mapPlace = new MapPlace(jurisdiction.getMapLink());
 
@@ -321,23 +327,43 @@ public class ClearServlet extends HttpServlet {
                     e.printStackTrace(out);
                 }
 
-                out.println("<input id=\"updatesRadio\" class=\"w3-button\" type=\"radio\" name=\"display_type\">");
-                out.println("<label for=\"updatesRadio\">Updates</label>");
-                out.println("<input id=\"queriesRadio\" class=\"w3-button\" type=\"radio\" name=\"display_type\">");
-                out.println("<label for=\"queriesRadio\">Queries</label>");
+                String displayType = req.getParameter("display_type");
+                String updatesCheckedString = "checked";
+                String queriesCheckedString = "";
+                if(displayType != null) {
+                    if(displayType.equals("Updates")) {
+                        updatesCheckedString = "checked";
+                    } else {
+                        updatesCheckedString = "";
+                        queriesCheckedString = "checked";
+                    }
+                }
+                
+                out.println("<div class=\"w3-container\" style=\"width:50%\">");
+                out.println("   <form method=\"GET\" action=\"/clear/clear\">");
+                out.println("      <input type=\"hidden\" name=\"" + PARAM_VIEW + "\" value=\"" + view + "\">");
+                out.println("      <input " + updatesCheckedString + " id=\"updatesRadio\" class=\"w3-button\" type=\"radio\" name=\"display_type\" value=\"Updates\" onclick=\"this.form.submit()\">");
+                out.println("      <label for=\"updatesRadio\">Updates</label>");
+                out.println("      <input " + queriesCheckedString + " id=\"queriesRadio\" class=\"w3-button\" type=\"radio\" name=\"display_type\" value=\"Queries\" onclick=\"this.form.submit()\">");
+                out.println("      <label for=\"queriesRadio\">Queries</label>");
+                out.println("   </form>");
+                out.println("</div>");
 
-                out.println("<div class=\"w3-cell-row\">");
-                out.println("   <div class=\"w3-cell\">");
-                out.println("       <input class=\"w3-button\" type=\"button\" value=\"<-\">");
-                out.println("   </div>");
-                out.println("   <div class=\"w3-cell\">");
-                out.println("       <p>" + sdfMonthYear.format(viewMonth.getTime()) + "</p>");
-                out.println("   </div>");
-                out.println("   <div class=\"w3-cell\">");
-                out.println("       <input class=\"w3-button\" type=\"button\" value=\"->\">");
+                out.println("<div class=\"w3-container\" style=\"width:50%\">");
+                out.println("   <div class=\"w3-cell-row\">");
+                out.println("      <div class=\"w3-cell\">");
+                out.println("          <input class=\"w3-button\" type=\"button\" value=\"<-\">");
+                out.println("      </div>");
+                out.println("      <div class=\"w3-cell\">");
+                out.println("          <p>" + sdfMonthYear.format(viewMonth.getTime()) + "</p>");
+                out.println("      </div>");
+                out.println("      <div class=\"w3-cell\">");
+                out.println("          <input class=\"w3-button\" type=\"button\" value=\"->\">");
+                out.println("      </div>");
                 out.println("   </div>");
                 out.println("</div>");
 
+                out.println("<div class=\"w3-container\" style=\"width:50%\">");
                 out.println("   <table class=\"w3-table w3-striped\">");
                 out.println("      <tr>");
                 out.println("          <th>User</th>");
@@ -353,6 +379,8 @@ public class ClearServlet extends HttpServlet {
                     out.println("      </tr>");
                 }
                 out.println("   </table>");
+                out.println("</div>");
+
                 out.println("<form>");
                 out.println(
                         "   <input class=\"w3-button\" type=\"submit\" name=\"resetButton\" value=\"reset database\">");
@@ -400,9 +428,11 @@ public class ClearServlet extends HttpServlet {
     private String resetDatabase(Session session) {
         String message;
         session.beginTransaction();
+        session.createNativeQuery("SET FOREIGN_KEY_CHECKS = 0").executeUpdate();
         session.createNativeQuery("TRUNCATE TABLE EntryForInterop").executeUpdate();
         session.createNativeQuery("TRUNCATE TABLE Contact").executeUpdate();
-        // session.createNativeQuery("TRUNCATE TABLE Jurisdiction").executeUpdate();
+        session.createNativeQuery("TRUNCATE TABLE Jurisdiction").executeUpdate();
+        session.createNativeQuery("SET FOREIGN_KEY_CHECKS = 1").executeUpdate();
         session.getTransaction().commit();
 
         // create fake jurisdictions
