@@ -5,6 +5,8 @@ import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.util.Properties;
 
+import io.github.cdimascio.dotenv.Dotenv;
+import org.immregistries.clear.servlet.ClearServlet;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -39,11 +41,13 @@ public class EmailServlet extends HttpServlet {
 
             out.println("<form method=\"POST\">");
             out.println("   <input id=\"emailInput\" type=\"email\" name=\"emailInput\">");
-            out.println("      <label for=\"emailInput\">to and from</label></br>");
-            out.println("   <input id=\"usernameInput\" type=\"email\" name=\"usernameInput\">");
-            out.println("      <label for=\"usernameInput\">username</label></br>"); 
-            out.println("   <input id=\"passwordInput\" type=\"password\" name=\"passwordInput\">");
-            out.println("      <label for=\"passwordInput\">password</label></br>");
+            out.println("      <label for=\"emailInput\">to</label></br>");
+            out.println("   <select id=\"jurisdictionInput\" name=\"jurisdictionInput\">");
+            for (String user : ClearServlet.populationMap.keySet()) {
+                out.println("       <option value=\"" + user + "\">" + user + "</option>");
+            }
+            out.println("   <select>");
+            out.println("      <label for=\"jurisdictionInput\">jurisdiction</label></br>");
             out.println("   <input class=\"w3-button\" type=\"submit\" value=\"Submit\">");
             out.println("</form>");
 
@@ -61,15 +65,18 @@ public class EmailServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         String to = req.getParameter("emailInput");
-        String from = req.getParameter("emailInput");
-        final String username = req.getParameter("usernameInput");
-        final String password = req.getParameter("passwordInput");
+        Dotenv dotenv = Dotenv.load();
+        String from = dotenv.get("GMAIL_USERNAME");
+        final String username = dotenv.get("GMAIL_USERNAME");
+        final String password = dotenv.get("GMAIL_PASSWORD");
+        String jurisdiction = req.getParameter("jurisdictionInput");
         String host = "smtp.gmail.com";
 
-        sendEmail(to, from, username, password, host);
+        sendEmail(jurisdiction, to, from, username, password, host);
+        doGet(req, resp);
     }
 
-    protected void sendEmail(String to, String from, String username, String password, String host) {
+    protected void sendEmail(String jurisdiction, String to, String from, String username, String password, String host) {
         Properties props = new Properties();
         props.put("mail.smtp.auth", "true");
         props.put("mail.smtp.starttls.enable", "true");
@@ -85,7 +92,7 @@ public class EmailServlet extends HttpServlet {
             message.setFrom(new InternetAddress(from));
             message.setRecipient(Message.RecipientType.TO, new InternetAddress(to));
             message.setSubject("CLEAR");
-            message.setText("enter clear\nhttp://localhost:8080/clear/clear?view=data&jurisdiction=AZ");
+            message.setText("enter clear\nhttp://localhost:8080/clear/clear?view=data&jurisdiction=" + jurisdiction);
 
             Transport.send(message);
         } catch (MessagingException e) {
@@ -106,11 +113,11 @@ public class EmailServlet extends HttpServlet {
         out.println("    <header class=\"w3-container w3-green\">");
         out.println("      <div class=\"w3-bar\">");
         out.println("        <h1>CLEAR - Community Led Exchange and Aggregate Reporting</h1> ");
-        out.println("        <a href=\"/clear" + PARAM_VIEW + "=" + VIEW_DATA
+        out.println("        <a href=\"/clear/clear?" + PARAM_VIEW + "=" + VIEW_DATA
                 + "\" class=\"w3-bar-item w3-button\">Data</a> ");
-        out.println("        <a href=\"/clear" + PARAM_VIEW + "=" + VIEW_MAP
+        out.println("        <a href=\"/clear/clear?" + PARAM_VIEW + "=" + VIEW_MAP
                 + "\" class=\"w3-bar-item w3-button\">Map</a> ");
-        out.println("        <a href=\"clear/email\" class=\"w3-bar-item w3-button\">Mail</a> ");
+        out.println("        <a href=\"\" class=\"w3-bar-item w3-button\">Mail</a> ");
         out.println("      </div>");
         out.println("    </header>");
         out.println("    <div class=\"w3-container\">");

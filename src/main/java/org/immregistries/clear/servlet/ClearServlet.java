@@ -45,7 +45,7 @@ public class ClearServlet extends HttpServlet {
     public static final String DISPLAY_TYPE_UPDATES = "updates";
     public static final String DISPLAY_TYPE_QUERIES = "queries";
 
-    private static Map<String, Integer> populationMap = new HashMap<String, Integer>();
+    public static Map<String, Integer> populationMap = new HashMap<String, Integer>();
 
     static {
         populationMap.put("AL", 5025369);
