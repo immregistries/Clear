@@ -45,10 +45,6 @@ public class ClearServlet extends HttpServlet {
     public static final String DISPLAY_TYPE_UPDATES = "updates";
     public static final String DISPLAY_TYPE_QUERIES = "queries";
 
-    static {
-
-    }
-
     private static Map<String, Integer> populationMap = new HashMap<String, Integer>();
 
     static {
@@ -125,7 +121,7 @@ public class ClearServlet extends HttpServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
 
-        SimpleDateFormat sdfMonthYear = new SimpleDateFormat("MMMM YYYY");
+        SimpleDateFormat sdfMonthYear = new SimpleDateFormat("MMMM yyyy");
         resp.setContentType("text/html");
 
         String view = VIEW_DATA;
@@ -267,10 +263,10 @@ public class ClearServlet extends HttpServlet {
                         out.println("      <tr>");
                         out.println("           <td>" + sdfMonthYear.format(tmpCalendar.getTime()) + "</td>");
                         out.println(
-                                "           <td><input type=\"number\" name=\"" + rowName + "-Updates"
+                                "           <td><input class=\"formatted-number\" type=\"text\" name=\"" + rowName + "-Updates"
                                         + "\" value=\"" + countUpdate + "\"></td>");
                         out.println(
-                                "           <td><input type=\"number\" name=\"" + rowName + "-Queries"
+                                "           <td><input class=\"formatted-number\" type=\"text\" name=\"" + rowName + "-Queries"
                                         + "\" value=\"" + countQuery + "\"></td>");
                         out.println("      </tr>");
                         tmpCalendar.add(Calendar.MONTH, 1);
@@ -281,6 +277,35 @@ public class ClearServlet extends HttpServlet {
                         + ACTION_SAVE + "\">");
                 out.println("</form>");
                 out.println("</div>");
+
+                //format inputs
+                out.println("<script>");
+                out.println("document.addEventListener(\"DOMContentLoaded\", function () {");
+                out.println("    document.querySelectorAll(\".formatted-number\").forEach(input => {");
+
+                // Format existing numbers on page load
+                out.println("        let rawValue = input.value.replace(/,/g, \"\");");
+                out.println("        if (!isNaN(rawValue) && rawValue.length > 0) {");
+                out.println("            input.value = Number(rawValue).toLocaleString(\"en-US\");");
+                out.println("        }");
+
+                // Format on input
+                out.println("        input.addEventListener(\"input\", function () {");
+                out.println("            let value = this.value.replace(/,/g, \"\"); // Remove commas");
+                out.println("            if (!isNaN(value) && value.length > 0) {");
+                out.println("                this.value = Number(value).toLocaleString(\"en-US\");");
+                out.println("            }");
+                out.println("        });");
+
+                // Remove formatting before submission
+                out.println("        input.form?.addEventListener(\"submit\", function () {");
+                out.println("            input.value = input.value.replace(/,/g, \"\"); // Remove commas before sending");
+                out.println("        });");
+
+                out.println("    });");
+                out.println("});");
+                out.println("</script>");
+
             }
 
             if (view.equals(VIEW_MAP)) {
@@ -339,7 +364,7 @@ public class ClearServlet extends HttpServlet {
                         } else {
                             mapPlace.setFillerColor(Color.MAP_CENTER);
                         }
-
+                        
                         mapEntityMaker.addMapPlace(mapPlace);
                     }
                     mapEntityMaker.setMapTitle("Map");
@@ -404,11 +429,13 @@ public class ClearServlet extends HttpServlet {
                 out.println("      </tr>");
                 for (EntryForInterop efi : allEntries) {
                     Jurisdiction jurisdiction = efi.getJurisdiction();
-                    out.println("      <tr>");
-                    out.println("           <td style=\"width:30%\">" + jurisdiction.getDisplayLabel() + "</td>");
-                    out.println("           <td style=\"width:30%\">" + efi.getCountUpdate() + "</td>");
-                    out.println("           <td style=\"width:30%\">" + efi.getCountQuery() + "</td>");
-                    out.println("      </tr>");
+                    if(sdfMonthYear.format(efi.getReportingPeriod()).equals(sdfMonthYear.format(month.getTime()))) {
+                        out.println("      <tr>");
+                        out.println("           <td style=\"width:30%\">" + jurisdiction.getDisplayLabel() + "</td>");
+                        out.println("           <td class=\"formatted-number\" style=\"width:30%\">" + efi.getCountUpdate() + "</td>");
+                        out.println("           <td class=\"formatted-number\" style=\"width:30%\">" + efi.getCountQuery() + "</td>");
+                        out.println("      </tr>");
+                    }
                 }
                 out.println("   </table>");
                 out.println("</div>");
@@ -418,6 +445,18 @@ public class ClearServlet extends HttpServlet {
                         "   <input class=\"w3-button\" type=\"submit\" name=\"resetButton\" value=\"reset database\">");
                 out.println("</form>");
                 out.println("</div>");
+
+                // Format all <p> elements with class 'formatted-number'
+                out.println("<script>");
+                out.println("document.addEventListener(\"DOMContentLoaded\", function () {");
+                out.println("    document.querySelectorAll(\".formatted-number\").forEach(paragraph => {");
+                out.println("        let rawValue = paragraph.textContent.replace(/,/g, \"\").trim();");
+                out.println("        if (!isNaN(rawValue) && rawValue.length > 0) {");
+                out.println("            paragraph.textContent = Number(rawValue).toLocaleString(\"en-US\");");
+                out.println("        }");
+                out.println("    });");
+                out.println("});");
+                out.println("</script>");
 
             }
 
@@ -441,7 +480,7 @@ public class ClearServlet extends HttpServlet {
     private HashMap<String, EntryForInterop> getEntryForInteropMap(Jurisdiction selectedJurisdiction, Session session) {
         SimpleDateFormat sdfRowName = new SimpleDateFormat("MMMMYYYY");
         HashMap<String, EntryForInterop> entryForInteropMap = new HashMap<String, EntryForInterop>();
-        Query query = session.createQuery("from EntryForInterop where jurisdiction = :jurisdiction",
+        Query<EntryForInterop> query = session.createQuery("from EntryForInterop where jurisdiction = :jurisdiction",
                 EntryForInterop.class);
         query.setParameter("jurisdiction", selectedJurisdiction);
         List<EntryForInterop> entryForInteropList = query.list();
@@ -452,9 +491,7 @@ public class ClearServlet extends HttpServlet {
     }
 
     private Query<Jurisdiction> getJurisdictionList(Session session) {
-        List<Jurisdiction> jurisdictionList;
         Query<Jurisdiction> jq = session.createQuery("from Jurisdiction order by displayLabel", Jurisdiction.class);
-        jurisdictionList = jq.list();
         return jq;
     }
 
@@ -484,18 +521,27 @@ public class ClearServlet extends HttpServlet {
         message = "randomizing all numbers";
         Query<Jurisdiction> jurisdictionQuery = session.createQuery("FROM Jurisdiction", Jurisdiction.class);
 
-        for (Jurisdiction jur : jurisdictionQuery.list()) {
-            EntryForInterop newEntry = new EntryForInterop();
-            Random rand = new Random();
-            int userPopulation = populationMap.get(jur.getMapLink());
-            newEntry.setCountUpdate(
-                    (int) Math.round(rand.nextFloat() * (userPopulation / 2.0) + (userPopulation / 2.0)));
-            newEntry.setCountQuery(
-                    (int) Math.round(rand.nextFloat() * (userPopulation / 2.0) + (userPopulation / 2.0)));
-            newEntry.setReportingPeriod(new Date());
-            newEntry.setJurisdiction(jur);
-            newEntry.setContactId(0);
-            session.save(newEntry);
+        Calendar tmpCalendar = Calendar.getInstance();
+        tmpCalendar.add(Calendar.YEAR, -2);
+        tmpCalendar.set(Calendar.DAY_OF_MONTH, 1);
+        for (int i = 0; i < 25; i++) {
+            Date reportingPeriod = tmpCalendar.getTime();
+            for (Jurisdiction jur : jurisdictionQuery.list()) {
+                Random rand = new Random();
+                if(rand.nextInt(100) < 50) {
+                    EntryForInterop newEntry = new EntryForInterop();
+                    int userPopulation = populationMap.get(jur.getMapLink());
+                    newEntry.setCountUpdate(
+                            (int) Math.round(rand.nextFloat() * (userPopulation / 2.0) + (userPopulation / 2.0)));
+                    newEntry.setCountQuery(
+                            (int) Math.round(rand.nextFloat() * (userPopulation / 2.0) + (userPopulation / 2.0)));
+                    newEntry.setReportingPeriod(reportingPeriod);
+                    newEntry.setJurisdiction(jur);
+                    newEntry.setContactId(0);
+                    session.save(newEntry);
+                }
+            }
+            tmpCalendar.add(Calendar.MONTH, 1);
         }
         session.getTransaction().commit();
         return message;

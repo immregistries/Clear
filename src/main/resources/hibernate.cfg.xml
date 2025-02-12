@@ -16,5 +16,6 @@
         <mapping class="org.immregistries.clear.model.EntryForInterop"></mapping>
         <mapping class="org.immregistries.clear.model.Contact"></mapping>
         <mapping class="org.immregistries.clear.model.Jurisdiction"></mapping>
+        <mapping class="org.immregistries.clear.model.ValidationCode"></mapping>
     </session-factory>
 </hibernate-configuration>

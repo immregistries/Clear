@@ -7,9 +7,9 @@ public class Color {
     public static final Color MAP_LABEL_TEXT = new Color("#000000");
     public static final Color MAP_SELECTED = new Color("#00ff00");
 
-    public static final Color MAP_LOWER = new Color("#bbeebb");
-    public static final Color MAP_CENTER = new Color("#88ee88");
-    public static final Color MAP_UPPER = new Color("#00ee00");
+    public static final Color MAP_LOWER = new Color("#A5E9A8");
+    public static final Color MAP_CENTER = new Color("#4CAF50");
+    public static final Color MAP_UPPER = new Color("#126C16");
 
     private String rgb = "";
 

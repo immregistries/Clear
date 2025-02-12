@@ -21,11 +21,14 @@ import org.immregistries.clear.SoftwareVersion;
 
 public class EmailServlet extends HttpServlet {
 
+    public static final String PARAM_VIEW = "view";
+    public static final String VIEW_MAP = "map";
+    public static final String VIEW_DATA = "data";
+
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
 
-        SimpleDateFormat sdfMonthYear = new SimpleDateFormat("MMMM YYYY");
         resp.setContentType("text/html");
         System.out.println("--> calling doGet");
 
@@ -34,12 +37,15 @@ public class EmailServlet extends HttpServlet {
             System.out.println("--> printing header");
             printHeader(out);
 
-            out.println("<form method=\"post\">");
-            out.println("   <input type=\"number\" name=\"emailInput\">");
+            out.println("<form method=\"POST\">");
+            out.println("   <input id=\"emailInput\" type=\"email\" name=\"emailInput\">");
+            out.println("      <label for=\"emailInput\">to and from</label></br>");
+            out.println("   <input id=\"usernameInput\" type=\"email\" name=\"usernameInput\">");
+            out.println("      <label for=\"usernameInput\">username</label></br>"); 
+            out.println("   <input id=\"passwordInput\" type=\"password\" name=\"passwordInput\">");
+            out.println("      <label for=\"passwordInput\">password</label></br>");
             out.println("   <input class=\"w3-button\" type=\"submit\" value=\"Submit\">");
             out.println("</form>");
-
-            
 
             System.out.println("--> printing footer");
             printFooter(out);
@@ -54,11 +60,16 @@ public class EmailServlet extends HttpServlet {
 
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        String to = "";
-        String from = "";
-        final String username = "";
-        final String password = "";
-        String host = "";
+        String to = req.getParameter("emailInput");
+        String from = req.getParameter("emailInput");
+        final String username = req.getParameter("usernameInput");
+        final String password = req.getParameter("passwordInput");
+        String host = "smtp.gmail.com";
+
+        sendEmail(to, from, username, password, host);
+    }
+
+    protected void sendEmail(String to, String from, String username, String password, String host) {
         Properties props = new Properties();
         props.put("mail.smtp.auth", "true");
         props.put("mail.smtp.starttls.enable", "true");
@@ -73,15 +84,15 @@ public class EmailServlet extends HttpServlet {
             Message message = new MimeMessage(session);
             message.setFrom(new InternetAddress(from));
             message.setRecipient(Message.RecipientType.TO, new InternetAddress(to));
-            message.setSubject("SMTP Email from Java");
-            message.setText("Test Email");
+            message.setSubject("CLEAR");
+            message.setText("enter clear\nhttp://localhost:8080/clear/clear?view=data&jurisdiction=AZ");
 
             Transport.send(message);
-            System.out.println("Email Message Sent Successfully");
         } catch (MessagingException e) {
             throw new RuntimeException(e);
         }
     }
+
 
     protected void printHeader(PrintWriter out) {
         out.println("<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.01//EN\">");
@@ -92,10 +103,14 @@ public class EmailServlet extends HttpServlet {
         out.println("  </head>");
         out.println("  <body>");
 
-        out.println("    <header class=\"w3-container w3-light-grey\">");
-        out.println("      <div class=\"w3-bar w3-light-grey\">");
+        out.println("    <header class=\"w3-container w3-green\">");
+        out.println("      <div class=\"w3-bar\">");
         out.println("        <h1>CLEAR - Community Led Exchange and Aggregate Reporting</h1> ");
-        out.println("        <a href=\"\" class=\"w3-bar-item w3-button\">Main</a> ");
+        out.println("        <a href=\"/clear" + PARAM_VIEW + "=" + VIEW_DATA
+                + "\" class=\"w3-bar-item w3-button\">Data</a> ");
+        out.println("        <a href=\"/clear" + PARAM_VIEW + "=" + VIEW_MAP
+                + "\" class=\"w3-bar-item w3-button\">Map</a> ");
+        out.println("        <a href=\"clear/email\" class=\"w3-bar-item w3-button\">Mail</a> ");
         out.println("      </div>");
         out.println("    </header>");
         out.println("    <div class=\"w3-container\">");
