@@ -131,7 +131,7 @@ public class ClearServlet extends HttpServlet {
         String selectedJurisdictionId = "AZ";
         Jurisdiction selectedJurisdiction = null;
         if (req.getParameter(PARAM_JURISDICTION) != null) {
-            selectedJurisdictionId = req.getParameter(PARAM_JURISDICTION);
+            selectedJurisdictionId = req.getParameter(PARAM_JURISDICTION).replace('-', ' ');
         }
         
         Calendar month = Calendar.getInstance();
@@ -223,7 +223,7 @@ public class ClearServlet extends HttpServlet {
                 }
             }
 
-            printHeader(out);
+            printHeader(out, selectedJurisdictionId);
             if (message != null) {
                 out.println("<p>" + message + "</p>");
             }
@@ -340,8 +340,6 @@ public class ClearServlet extends HttpServlet {
                     upperBorder = 0;
                     lowerBorder = 0;
                 }
-                out.println("<p> highest update count: " + highestDisplayCount + "</p>");
-                out.println("<p> lowest update count: " + lowestDisplayCount + "</p>");
 
                 try {
                     MapEntityMaker mapEntityMaker = new MapEntityMaker();
@@ -420,23 +418,79 @@ public class ClearServlet extends HttpServlet {
                 out.println("</form>");
                 out.println("</div>");
 
+                int numEntries = 0;
+
+                float uToPopTotal = 0;
+                float qToPopTotal = 0;
+                float uToQTotal = 0;
+
+                int popTotal = 0;
+                int updatesTotal = 0;
+                int queriesTotal = 0;
+
                 out.println("<div class=\"w3-container\">");
                 out.println("   <table class=\"w3-table w3-striped\">");
                 out.println("      <tr>");
                 out.println("          <th>User</th>");
+                out.println("          <th>Population</th>");
                 out.println("          <th>Updates</th>");
                 out.println("          <th>Queries</th>");
+                out.println("          <th>Updates/Population Ratio</th>");
+                out.println("          <th>Queries/Population Ratio</th>");
+                out.println("          <th>Updates/Queries Ratio</th>");
                 out.println("      </tr>");
                 for (EntryForInterop efi : allEntries) {
                     Jurisdiction jurisdiction = efi.getJurisdiction();
+                    int population = populationMap.get(jurisdiction.getDisplayLabel());
                     if(sdfMonthYear.format(efi.getReportingPeriod()).equals(sdfMonthYear.format(month.getTime()))) {
+                        numEntries += 1;
+                        popTotal += population;
+                        updatesTotal += efi.getCountUpdate();
+                        queriesTotal += efi.getCountQuery();
                         out.println("      <tr>");
-                        out.println("           <td style=\"width:30%\">" + jurisdiction.getDisplayLabel() + "</td>");
-                        out.println("           <td class=\"formatted-number\" style=\"width:30%\">" + efi.getCountUpdate() + "</td>");
-                        out.println("           <td class=\"formatted-number\" style=\"width:30%\">" + efi.getCountQuery() + "</td>");
+                        out.println("           <td style=\"width:20%\">" + jurisdiction.getDisplayLabel() + "</td>");
+                        out.println("           <td class=\"formatted-number\" style=\"width:20%\">" + population + "</td>");
+                        out.println("           <td class=\"formatted-number\" style=\"width:20%\">" + efi.getCountUpdate() + "</td>");
+                        out.println("           <td class=\"formatted-number\" style=\"width:20%\">" + efi.getCountQuery() + "</td>");
+                        float uToP = (float) efi.getCountUpdate()/population;
+                        uToPopTotal += uToP;
+                        float qToP = (float) efi.getCountQuery()/population;
+                        qToPopTotal += qToP;
+                        float uToQ = (float) efi.getCountUpdate()/efi.getCountQuery();
+                        uToQTotal += uToQ;
+                        out.println("           <td style=\"width:20%\">" +  String.format("%.2f",uToP) + "</td>");
+                        out.println("           <td style=\"width:20%\">" +  String.format("%.2f",qToP) + "</td>");
+                        out.println("           <td style=\"width:20%\">" +  String.format("%.2f",uToQ) + "</td>");
                         out.println("      </tr>");
                     }
                 }
+                out.println("   </table>");
+                out.println("</div></br>");
+
+                out.println("<div class=\"w3-container\">");
+                out.println("   <table class=\"w3-table w3-striped\">");
+                out.println("      <tr>");
+                out.println("          <th>Updates/Population Average</th>");
+                out.println("          <th>Queries/Population Average</th>");
+                out.println("          <th>Updates/Queries Average</th>");
+                out.println("          <th>Total Updates/Population </th>");
+                out.println("          <th>Total Queries/Population </th>");
+                out.println("          <th>Total Updates/Queries </th>");
+                out.println("      </tr>");
+                out.println("      <tr>");
+                float uToPopAverage = uToPopTotal/numEntries;
+                float qToPopAverage = qToPopTotal/numEntries;
+                float uToQAverage = uToQTotal/numEntries;
+                out.println("           <td style=\"width:50%\">" +  String.format("%.2f",uToPopAverage) + "</td>");
+                out.println("           <td style=\"width:50%\">" +  String.format("%.2f",qToPopAverage) + "</td>");
+                out.println("           <td style=\"width:50%\">" +  String.format("%.2f",uToQAverage) + "</td>");
+                float totalUToPop = ((float)updatesTotal/numEntries)/((float)popTotal/numEntries);
+                float totalQToPop = ((float)queriesTotal/numEntries)/((float)popTotal/numEntries);
+                float totalUToQ = ((float)updatesTotal/numEntries)/((float)queriesTotal/numEntries);
+                out.println("           <td style=\"width:50%\">" +  String.format("%.2f",totalUToPop) + "</td>");
+                out.println("           <td style=\"width:50%\">" +  String.format("%.2f",totalQToPop) + "</td>");
+                out.println("           <td style=\"width:50%\">" +  String.format("%.2f",totalUToQ) + "</td>");
+                out.println("      </tr>");
                 out.println("   </table>");
                 out.println("</div>");
 
@@ -521,14 +575,15 @@ public class ClearServlet extends HttpServlet {
         message = "randomizing all numbers";
         Query<Jurisdiction> jurisdictionQuery = session.createQuery("FROM Jurisdiction", Jurisdiction.class);
 
-        Calendar tmpCalendar = Calendar.getInstance();
-        tmpCalendar.add(Calendar.YEAR, -2);
-        tmpCalendar.set(Calendar.DAY_OF_MONTH, 1);
-        for (int i = 0; i < 25; i++) {
-            Date reportingPeriod = tmpCalendar.getTime();
-            for (Jurisdiction jur : jurisdictionQuery.list()) {
+        for (Jurisdiction jur : jurisdictionQuery.list()) {
+            if(!jur.getMapLink().startsWith("A")) {
                 Random rand = new Random();
-                if(rand.nextInt(100) < 50) {
+                Calendar tmpCalendar = Calendar.getInstance();
+                tmpCalendar.add(Calendar.YEAR, -2);
+                tmpCalendar.set(Calendar.DAY_OF_MONTH, 1);
+                for (int i = 0; i < 25; i++) {
+                    Date reportingPeriod = tmpCalendar.getTime();
+                
                     EntryForInterop newEntry = new EntryForInterop();
                     int userPopulation = populationMap.get(jur.getMapLink());
                     newEntry.setCountUpdate(
@@ -539,15 +594,16 @@ public class ClearServlet extends HttpServlet {
                     newEntry.setJurisdiction(jur);
                     newEntry.setContactId(0);
                     session.save(newEntry);
+                    tmpCalendar.add(Calendar.MONTH, 1);
                 }
             }
-            tmpCalendar.add(Calendar.MONTH, 1);
+            
         }
         session.getTransaction().commit();
         return message;
     }
 
-    protected void printHeader(PrintWriter out) {
+    protected void printHeader(PrintWriter out, String selectedJurisdiction) {
         out.println("<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.01//EN\">");
         out.println("<html>");
         out.println("  <head>");
@@ -559,8 +615,7 @@ public class ClearServlet extends HttpServlet {
         out.println("    <header class=\"w3-container w3-green\">");
         out.println("      <div class=\"w3-bar\">");
         out.println("        <h1>CLEAR - Community Led Exchange and Aggregate Reporting</h1> ");
-        out.println("        <a href=\"clear?" + PARAM_VIEW + "=" + VIEW_DATA
-                + "\" class=\"w3-bar-item w3-button\">Data</a> ");
+        out.println("        <a href=\"clear?" + PARAM_VIEW + "=" + VIEW_DATA + "&" + PARAM_JURISDICTION + "=" + selectedJurisdiction + "\" class=\"w3-bar-item w3-button\">Data</a> ");
         out.println("        <a href=\"clear?" + PARAM_VIEW + "=" + VIEW_MAP
                 + "\" class=\"w3-bar-item w3-button\">Map</a> ");
         out.println("        <a href=\"clear/email\" class=\"w3-bar-item w3-button\">Mail</a> ");

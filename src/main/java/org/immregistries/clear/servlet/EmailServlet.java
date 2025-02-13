@@ -38,16 +38,16 @@ public class EmailServlet extends HttpServlet {
         try {
             System.out.println("--> printing header");
             printHeader(out);
-
+            out.println("<h1>Send Email</h3>");
             out.println("<form method=\"POST\">");
             out.println("   <input id=\"emailInput\" type=\"email\" name=\"emailInput\">");
-            out.println("      <label for=\"emailInput\">to</label></br>");
+            out.println("      <label for=\"emailInput\">Recipient</label></br></br>");
             out.println("   <select id=\"jurisdictionInput\" name=\"jurisdictionInput\">");
             for (String user : ClearServlet.populationMap.keySet()) {
                 out.println("       <option value=\"" + user + "\">" + user + "</option>");
             }
             out.println("   <select>");
-            out.println("      <label for=\"jurisdictionInput\">jurisdiction</label></br>");
+            out.println("      <label for=\"jurisdictionInput\">jurisdiction</label></br></br>");
             out.println("   <input class=\"w3-button\" type=\"submit\" value=\"Submit\">");
             out.println("</form>");
 
@@ -92,7 +92,8 @@ public class EmailServlet extends HttpServlet {
             message.setFrom(new InternetAddress(from));
             message.setRecipient(Message.RecipientType.TO, new InternetAddress(to));
             message.setSubject("CLEAR");
-            message.setText("enter clear\nhttp://localhost:8080/clear/clear?view=data&jurisdiction=" + jurisdiction);
+            String formattedJurisdiction = jurisdiction.replace(' ', '-');
+            message.setText("enter clear\nhttp://localhost:8080/clear/clear?view=data&jurisdiction=" + formattedJurisdiction);
 
             Transport.send(message);
         } catch (MessagingException e) {
