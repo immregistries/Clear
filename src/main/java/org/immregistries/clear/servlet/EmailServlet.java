@@ -3,10 +3,14 @@ package org.immregistries.clear.servlet;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Properties;
+import java.util.Random;
 
 import io.github.cdimascio.dotenv.Dotenv;
 import org.immregistries.clear.servlet.ClearServlet;
+import org.immregistries.clear.utils.HibernateUtil;
+
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -19,7 +23,11 @@ import jakarta.mail.Transport;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 
+import org.hibernate.query.Query;
 import org.immregistries.clear.SoftwareVersion;
+import org.immregistries.clear.model.EntryForInterop;
+import org.immregistries.clear.model.Jurisdiction;
+import org.immregistries.clear.model.ValidationCode;
 
 public class EmailServlet extends HttpServlet {
 
@@ -64,6 +72,7 @@ public class EmailServlet extends HttpServlet {
 
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
+        
         String to = req.getParameter("emailInput");
         Dotenv dotenv = Dotenv.load();
         String from = dotenv.get("GMAIL_USERNAME");
@@ -72,11 +81,26 @@ public class EmailServlet extends HttpServlet {
         String jurisdiction = req.getParameter("jurisdictionInput");
         String host = "smtp.gmail.com";
 
-        sendEmail(jurisdiction, to, from, username, password, host);
+        org.hibernate.Session session = HibernateUtil.getSessionFactory().openSession();
+        session.beginTransaction();
+        Random rand = new Random();
+        Query<Jurisdiction> jurQuery = session.createQuery("FROM Jurisdiction WHERE mapLink = :jurisdiction", Jurisdiction.class);
+        jurQuery.setParameter("jurisdiction", jurisdiction);
+        ValidationCode vc = new ValidationCode();
+        
+        vc.setJurisdictionId(jurQuery.getResultList().get(0).getJurisdictionId());
+        vc.setIssueDate(new Date());
+        vc.setAccessCode((int)(rand.nextFloat() * 999999));
+        session.save(vc);
+        session.getTransaction().commit();
+
+        sendEmail(jurisdiction, to, from, username, password, host, vc.getAccessCode());
+        
+
         doGet(req, resp);
     }
 
-    protected void sendEmail(String jurisdiction, String to, String from, String username, String password, String host) {
+    protected void sendEmail(String jurisdiction, String to, String from, String username, String password, String host, int accessCode) {
         Properties props = new Properties();
         props.put("mail.smtp.auth", "true");
         props.put("mail.smtp.starttls.enable", "true");
@@ -93,7 +117,7 @@ public class EmailServlet extends HttpServlet {
             message.setRecipient(Message.RecipientType.TO, new InternetAddress(to));
             message.setSubject("CLEAR");
             String formattedJurisdiction = jurisdiction.replace(' ', '-');
-            message.setText("enter clear\nhttp://localhost:8080/clear/clear?view=data&jurisdiction=" + formattedJurisdiction);
+            message.setText("enter clear\nhttp://localhost:8080/clear/clear?view=data&jurisdiction=" + formattedJurisdiction + "&access_code=" + accessCode);
 
             Transport.send(message);
         } catch (MessagingException e) {

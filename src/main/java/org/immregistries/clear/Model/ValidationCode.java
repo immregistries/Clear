@@ -23,8 +23,8 @@ public class ValidationCode {
     @Column(name = "accessCode", unique = true, nullable = false)
     private int accessCode;
 
-    @Column(name = "contactId", nullable = false)
-    private int contactId;
+    @Column(name = "jurisdictionId", nullable = false)
+    private int jurisdictionId;
 
     @Column(name = "issueDate", nullable = false)
     private Date issueDate = new Date();
@@ -37,12 +37,16 @@ public class ValidationCode {
         return accessCode;
     }
 
-    public int getcantactId() {
-        return contactId;
+    public void setAccessCode(int accessCode) {
+        this.accessCode = accessCode;
     }
 
-    public void setContactId(int contactId) {
-        this.contactId = contactId;
+    public int getJurisdictionId() {
+        return jurisdictionId;
+    }
+
+    public void setJurisdictionId(int jurisdictionId) {
+        this.jurisdictionId = jurisdictionId;
     }
 
     public Date getIssueDate() {

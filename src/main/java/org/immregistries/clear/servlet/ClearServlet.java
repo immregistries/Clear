@@ -19,6 +19,7 @@ import javax.servlet.http.HttpServletResponse;
 import org.immregistries.clear.SoftwareVersion;
 import org.immregistries.clear.model.EntryForInterop;
 import org.immregistries.clear.model.Jurisdiction;
+import org.immregistries.clear.model.ValidationCode;
 import org.immregistries.clear.servlet.maps.Color;
 import org.immregistries.clear.servlet.maps.MapEntityMaker;
 import org.immregistries.clear.servlet.maps.MapPlace;
@@ -44,6 +45,8 @@ public class ClearServlet extends HttpServlet {
     public static final String PARAM_DISPLAY_TYPE = "display_type";
     public static final String DISPLAY_TYPE_UPDATES = "updates";
     public static final String DISPLAY_TYPE_QUERIES = "queries";
+
+    public static final String PARAM_ACCESS_CODE = "access_code";
 
     public static Map<String, Integer> populationMap = new HashMap<String, Integer>();
 
@@ -128,10 +131,10 @@ public class ClearServlet extends HttpServlet {
         if (req.getParameter(PARAM_VIEW) != null) {
             view = req.getParameter(PARAM_VIEW);
         }
-        String selectedJurisdictionId = "AZ";
+        String selectedJurisdictionMapLink = "AZ";
         Jurisdiction selectedJurisdiction = null;
         if (req.getParameter(PARAM_JURISDICTION) != null) {
-            selectedJurisdictionId = req.getParameter(PARAM_JURISDICTION).replace('-', ' ');
+            selectedJurisdictionMapLink = req.getParameter(PARAM_JURISDICTION).replace('-', ' ');
         }
         
         Calendar month = Calendar.getInstance();
@@ -163,7 +166,7 @@ public class ClearServlet extends HttpServlet {
                     jurisdictionList = getJurisdictionList(session);
                 }
                 for (Jurisdiction j : jurisdictionList.list()) {
-                    if (j.getMapLink().equals(selectedJurisdictionId)) {
+                    if (j.getMapLink().equals(selectedJurisdictionMapLink)) {
                         selectedJurisdiction = j;
                     }
                 }
@@ -223,89 +226,96 @@ public class ClearServlet extends HttpServlet {
                 }
             }
 
-            printHeader(out, selectedJurisdictionId);
+            printHeader(out, selectedJurisdictionMapLink);
             if (message != null) {
                 out.println("<p>" + message + "</p>");
             }
 
-            if (view.equals(VIEW_DATA)) {
-                out.println("<h1> " + selectedJurisdiction.getDisplayLabel() + "</h3>");
-                HashMap<String, EntryForInterop> entryForInteropMap = getEntryForInteropMap(selectedJurisdiction,
-                        session);
-                out.println("<p>Found " + entryForInteropMap.size() + " entries already saved.</p>");
+            Query<ValidationCode> validationQuery = session.createQuery("FROM ValidationCode WHERE jurisdictionId = :selectedJurisdictionId", ValidationCode.class);
+            validationQuery.setParameter("selectedJurisdictionId", selectedJurisdiction.getJurisdictionId());
+            List<ValidationCode> validationQueryList = validationQuery.getResultList();
+            
+            if (view.equals(VIEW_DATA) && req.getParameter(PARAM_ACCESS_CODE) != null && req.getParameter(PARAM_ACCESS_CODE) != "") {
+                if(validationQueryList.size() > 0 && validationQueryList.get(0).getAccessCode() == Integer.parseInt(req.getParameter(PARAM_ACCESS_CODE))) {
+                    out.println("<h3> " + selectedJurisdiction.getDisplayLabel() + "</h3>");
+                    HashMap<String, EntryForInterop> entryForInteropMap = getEntryForInteropMap(selectedJurisdiction,
+                            session);
+                    out.println("<p>Found " + entryForInteropMap.size() + " entries already saved.</p>");
 
-                out.println("<div class=\"w3-container\" style=\"width:200px\">");
-                out.println("<form action=\"clear\" method=\"post\">");
-                out.println("   <input type=\"hidden\" name=\"" + PARAM_VIEW + "\" value=\"" + VIEW_DATA + "\">");
-                out.println("   <input type=\"hidden\" name=\"" + PARAM_JURISDICTION + "\" value=\""
-                        + selectedJurisdictionId + "\">");
-                out.println("   <table class=\"w3-table w3-striped\">");
-                out.println("      <tr>");
-                out.println("          <th>Month</th>");
-                out.println("          <th>Updates</th>");
-                out.println("          <th>Queries</th>");
-                out.println("      </tr>");
-                {
-                    Calendar tmpCalendar = Calendar.getInstance();
-                    tmpCalendar.add(Calendar.YEAR, -2);
-                    tmpCalendar.set(Calendar.DAY_OF_MONTH, 1);
-                    for (int i = 0; i < 25; i++) {
-                        SimpleDateFormat sdfRowName = new SimpleDateFormat("MMMMYYYY");
-                        Date reportingPeriod = tmpCalendar.getTime();
-                        String rowName = sdfRowName.format(reportingPeriod);
-                        String countUpdate = "";
-                        String countQuery = "";
-                        EntryForInterop efi = entryForInteropMap.get(sdfRowName.format(reportingPeriod));
-                        if (efi != null) {
-                            countUpdate = "" + efi.getCountUpdate();
-                            countQuery = "" + efi.getCountQuery();
+                    out.println("<div class=\"w3-container\" style=\"width:200px\">");
+                    out.println("<form action=\"clear\" method=\"post\">");
+                    out.println("   <input type=\"hidden\" name=\"" + PARAM_VIEW + "\" value=\"" + VIEW_DATA + "\">");
+                    out.println("   <input type=\"hidden\" name=\"" + PARAM_JURISDICTION + "\" value=\""
+                            + selectedJurisdictionMapLink + "\">");
+                    out.println("   <table class=\"w3-table w3-striped\">");
+                    out.println("      <tr>");
+                    out.println("          <th>Month</th>");
+                    out.println("          <th>Updates</th>");
+                    out.println("          <th>Queries</th>");
+                    out.println("      </tr>");
+                    {
+                        Calendar tmpCalendar = Calendar.getInstance();
+                        tmpCalendar.add(Calendar.YEAR, -2);
+                        tmpCalendar.set(Calendar.DAY_OF_MONTH, 1);
+                        for (int i = 0; i < 25; i++) {
+                            SimpleDateFormat sdfRowName = new SimpleDateFormat("MMMMYYYY");
+                            Date reportingPeriod = tmpCalendar.getTime();
+                            String rowName = sdfRowName.format(reportingPeriod);
+                            String countUpdate = "";
+                            String countQuery = "";
+                            EntryForInterop efi = entryForInteropMap.get(sdfRowName.format(reportingPeriod));
+                            if (efi != null) {
+                                countUpdate = "" + efi.getCountUpdate();
+                                countQuery = "" + efi.getCountQuery();
+                            }
+                            out.println("      <tr>");
+                            out.println("           <td>" + sdfMonthYear.format(tmpCalendar.getTime()) + "</td>");
+                            out.println(
+                                    "           <td><input class=\"formatted-number\" type=\"text\" name=\"" + rowName + "-Updates"
+                                            + "\" value=\"" + countUpdate + "\"></td>");
+                            out.println(
+                                    "           <td><input class=\"formatted-number\" type=\"text\" name=\"" + rowName + "-Queries"
+                                            + "\" value=\"" + countQuery + "\"></td>");
+                            out.println("      </tr>");
+                            tmpCalendar.add(Calendar.MONTH, 1);
                         }
-                        out.println("      <tr>");
-                        out.println("           <td>" + sdfMonthYear.format(tmpCalendar.getTime()) + "</td>");
-                        out.println(
-                                "           <td><input class=\"formatted-number\" type=\"text\" name=\"" + rowName + "-Updates"
-                                        + "\" value=\"" + countUpdate + "\"></td>");
-                        out.println(
-                                "           <td><input class=\"formatted-number\" type=\"text\" name=\"" + rowName + "-Queries"
-                                        + "\" value=\"" + countQuery + "\"></td>");
-                        out.println("      </tr>");
-                        tmpCalendar.add(Calendar.MONTH, 1);
                     }
+                    out.println("   </table>");
+                    out.println("   <input class=\"w3-button\" type=\"submit\" name=\"" + PARAM_ACTION + "\" value=\""
+                            + ACTION_SAVE + "\">");
+                    out.println("</form>");
+                    out.println("</div>");
+
+                    //format inputs
+                    out.println("<script>");
+                    out.println("document.addEventListener(\"DOMContentLoaded\", function () {");
+                    out.println("    document.querySelectorAll(\".formatted-number\").forEach(input => {");
+
+                    // Format existing numbers on page load
+                    out.println("        let rawValue = input.value.replace(/,/g, \"\");");
+                    out.println("        if (!isNaN(rawValue) && rawValue.length > 0) {");
+                    out.println("            input.value = Number(rawValue).toLocaleString(\"en-US\");");
+                    out.println("        }");
+
+                    // Format on input
+                    out.println("        input.addEventListener(\"input\", function () {");
+                    out.println("            let value = this.value.replace(/,/g, \"\"); // Remove commas");
+                    out.println("            if (!isNaN(value) && value.length > 0) {");
+                    out.println("                this.value = Number(value).toLocaleString(\"en-US\");");
+                    out.println("            }");
+                    out.println("        });");
+
+                    // Remove formatting before submission
+                    out.println("        input.form?.addEventListener(\"submit\", function () {");
+                    out.println("            input.value = input.value.replace(/,/g, \"\"); // Remove commas before sending");
+                    out.println("        });");
+
+                    out.println("    });");
+                    out.println("});");
+                    out.println("</script>");
+                } else {
+                    out.println("<h4>Access code not valid.</h4>");
                 }
-                out.println("   </table>");
-                out.println("   <input class=\"w3-button\" type=\"submit\" name=\"" + PARAM_ACTION + "\" value=\""
-                        + ACTION_SAVE + "\">");
-                out.println("</form>");
-                out.println("</div>");
-
-                //format inputs
-                out.println("<script>");
-                out.println("document.addEventListener(\"DOMContentLoaded\", function () {");
-                out.println("    document.querySelectorAll(\".formatted-number\").forEach(input => {");
-
-                // Format existing numbers on page load
-                out.println("        let rawValue = input.value.replace(/,/g, \"\");");
-                out.println("        if (!isNaN(rawValue) && rawValue.length > 0) {");
-                out.println("            input.value = Number(rawValue).toLocaleString(\"en-US\");");
-                out.println("        }");
-
-                // Format on input
-                out.println("        input.addEventListener(\"input\", function () {");
-                out.println("            let value = this.value.replace(/,/g, \"\"); // Remove commas");
-                out.println("            if (!isNaN(value) && value.length > 0) {");
-                out.println("                this.value = Number(value).toLocaleString(\"en-US\");");
-                out.println("            }");
-                out.println("        });");
-
-                // Remove formatting before submission
-                out.println("        input.form?.addEventListener(\"submit\", function () {");
-                out.println("            input.value = input.value.replace(/,/g, \"\"); // Remove commas before sending");
-                out.println("        });");
-
-                out.println("    });");
-                out.println("});");
-                out.println("</script>");
-
             }
 
             if (view.equals(VIEW_MAP)) {
@@ -534,7 +544,7 @@ public class ClearServlet extends HttpServlet {
     private HashMap<String, EntryForInterop> getEntryForInteropMap(Jurisdiction selectedJurisdiction, Session session) {
         SimpleDateFormat sdfRowName = new SimpleDateFormat("MMMMYYYY");
         HashMap<String, EntryForInterop> entryForInteropMap = new HashMap<String, EntryForInterop>();
-        Query<EntryForInterop> query = session.createQuery("from EntryForInterop where jurisdiction = :jurisdiction",
+        Query<EntryForInterop> query = session.createQuery("FROM EntryForInterop WHERE jurisdiction = :jurisdiction",
                 EntryForInterop.class);
         query.setParameter("jurisdiction", selectedJurisdiction);
         List<EntryForInterop> entryForInteropList = query.list();

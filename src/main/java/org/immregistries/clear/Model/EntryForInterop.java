@@ -34,7 +34,7 @@ public class EntryForInterop {
     private Date reportingPeriod = new Date();
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "jurisdictionId")
+    @JoinColumn(name = "jurisdiction")
     private Jurisdiction jurisdiction;
 
     @Column(name = "contactId", nullable = false)
