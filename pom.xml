@@ -29,6 +29,7 @@
 	</licenses>
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<maven.compiler.release>17</maven.compiler.release>
 		<!-- allowed values: R7, 1.0, 1.5, 2.0 or none -->
 	</properties>
 
@@ -71,9 +72,9 @@
     	</dependency>
 
 		<dependency>
-    		<groupId>javax.servlet</groupId>
-    		<artifactId>javax.servlet-api</artifactId>
-    		<version>4.0.1</version> <!-- Compatible with Java EE 8 -->
+	    	<groupId>jakarta.servlet</groupId>
+	    	<artifactId>jakarta.servlet-api</artifactId>
+	    	<version>6.0.0</version>
     		<scope>provided</scope>
 		</dependency>
 
@@ -121,9 +122,10 @@
 	</dependencies>
 
 	<build>
+		<finalName>clear</finalName>
 		<resources>
 			<resource>
-				<filtering>false</filtering>
+				<filtering>true</filtering>
 				<directory>src/main/resources</directory>
 			</resource>
 			<resource>
@@ -159,10 +161,9 @@
         <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-compiler-plugin</artifactId>
-            <version>2.5.1</version> <!-- or latest -->
+				<version>3.11.0</version>
             <configuration>
-                <source>1.8</source>  <!-- Set this to your desired Java version -->
-                <target>1.8</target>
+				<release>${maven.compiler.release}</release>
             </configuration>
         </plugin>
 

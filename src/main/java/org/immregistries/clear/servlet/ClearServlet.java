@@ -11,10 +11,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 import org.immregistries.clear.SoftwareVersion;
 import org.immregistries.clear.model.EntryForInterop;
@@ -136,10 +136,10 @@ public class ClearServlet extends HttpServlet {
         if (req.getParameter(PARAM_JURISDICTION) != null) {
             selectedJurisdictionMapLink = req.getParameter(PARAM_JURISDICTION).replace('-', ' ');
         }
-        
+
         Calendar month = Calendar.getInstance();
         String monthParam = req.getParameter(PARAM_MONTH);
-        if(monthParam != null && monthParam != "") {
+        if (monthParam != null && monthParam != "") {
             try {
                 month.setTime(sdfMonthYear.parse(monthParam));
             } catch (ParseException e) {
@@ -148,7 +148,7 @@ public class ClearServlet extends HttpServlet {
         }
 
         String displayType = req.getParameter(PARAM_DISPLAY_TYPE);
-        if(displayType == null) {
+        if (displayType == null) {
             displayType = DISPLAY_TYPE_UPDATES;
         }
 
@@ -231,12 +231,15 @@ public class ClearServlet extends HttpServlet {
                 out.println("<p>" + message + "</p>");
             }
 
-            Query<ValidationCode> validationQuery = session.createQuery("FROM ValidationCode WHERE jurisdictionId = :selectedJurisdictionId", ValidationCode.class);
+            Query<ValidationCode> validationQuery = session.createQuery(
+                    "FROM ValidationCode WHERE jurisdictionId = :selectedJurisdictionId", ValidationCode.class);
             validationQuery.setParameter("selectedJurisdictionId", selectedJurisdiction.getJurisdictionId());
             List<ValidationCode> validationQueryList = validationQuery.getResultList();
-            
-            if (view.equals(VIEW_DATA) && req.getParameter(PARAM_ACCESS_CODE) != null && req.getParameter(PARAM_ACCESS_CODE) != "") {
-                if(validationQueryList.size() > 0 && validationQueryList.get(0).getAccessCode() == Integer.parseInt(req.getParameter(PARAM_ACCESS_CODE))) {
+
+            if (view.equals(VIEW_DATA) && req.getParameter(PARAM_ACCESS_CODE) != null
+                    && req.getParameter(PARAM_ACCESS_CODE) != "") {
+                if (validationQueryList.size() > 0 && validationQueryList.get(0).getAccessCode() == Integer
+                        .parseInt(req.getParameter(PARAM_ACCESS_CODE))) {
                     out.println("<h3> " + selectedJurisdiction.getDisplayLabel() + "</h3>");
                     HashMap<String, EntryForInterop> entryForInteropMap = getEntryForInteropMap(selectedJurisdiction,
                             session);
@@ -271,10 +274,12 @@ public class ClearServlet extends HttpServlet {
                             out.println("      <tr>");
                             out.println("           <td>" + sdfMonthYear.format(tmpCalendar.getTime()) + "</td>");
                             out.println(
-                                    "           <td><input class=\"formatted-number\" type=\"text\" name=\"" + rowName + "-Updates"
+                                    "           <td><input class=\"formatted-number\" type=\"text\" name=\"" + rowName
+                                            + "-Updates"
                                             + "\" value=\"" + countUpdate + "\"></td>");
                             out.println(
-                                    "           <td><input class=\"formatted-number\" type=\"text\" name=\"" + rowName + "-Queries"
+                                    "           <td><input class=\"formatted-number\" type=\"text\" name=\"" + rowName
+                                            + "-Queries"
                                             + "\" value=\"" + countQuery + "\"></td>");
                             out.println("      </tr>");
                             tmpCalendar.add(Calendar.MONTH, 1);
@@ -286,7 +291,7 @@ public class ClearServlet extends HttpServlet {
                     out.println("</form>");
                     out.println("</div>");
 
-                    //format inputs
+                    // format inputs
                     out.println("<script>");
                     out.println("document.addEventListener(\"DOMContentLoaded\", function () {");
                     out.println("    document.querySelectorAll(\".formatted-number\").forEach(input => {");
@@ -307,7 +312,8 @@ public class ClearServlet extends HttpServlet {
 
                     // Remove formatting before submission
                     out.println("        input.form?.addEventListener(\"submit\", function () {");
-                    out.println("            input.value = input.value.replace(/,/g, \"\"); // Remove commas before sending");
+                    out.println(
+                            "            input.value = input.value.replace(/,/g, \"\"); // Remove commas before sending");
                     out.println("        });");
 
                     out.println("    });");
@@ -358,7 +364,7 @@ public class ClearServlet extends HttpServlet {
                         Jurisdiction jurisdiction = efi.getJurisdiction();
 
                         int displayCount = efi.getCountUpdate();
-                        if(displayType.equals(DISPLAY_TYPE_QUERIES)) {
+                        if (displayType.equals(DISPLAY_TYPE_QUERIES)) {
                             displayCount = efi.getCountQuery();
                         }
 
@@ -372,7 +378,7 @@ public class ClearServlet extends HttpServlet {
                         } else {
                             mapPlace.setFillerColor(Color.MAP_CENTER);
                         }
-                        
+
                         mapEntityMaker.addMapPlace(mapPlace);
                     }
                     mapEntityMaker.setMapTitle("Map");
@@ -382,28 +388,32 @@ public class ClearServlet extends HttpServlet {
                     e.printStackTrace(out);
                 }
 
-                
                 String updatesCheckedString = "checked";
                 String queriesCheckedString = "";
-                if(displayType.equals(DISPLAY_TYPE_UPDATES)) {
+                if (displayType.equals(DISPLAY_TYPE_UPDATES)) {
                     updatesCheckedString = "checked";
                 } else {
                     updatesCheckedString = "";
                     queriesCheckedString = "checked";
                 }
-                
+
                 out.println("<div class=\"w3-container\" style=\"width:40%\">");
                 out.println("<div class=\"w3-container\">");
                 out.println("   <form method=\"GET\" action=\"/clear/clear\">");
                 out.println("      <input type=\"hidden\" name=\"" + PARAM_VIEW + "\" value=\"" + view + "\">");
-                out.println("      <input type=\"hidden\" name=\"" + PARAM_MONTH + "\" value=\"" + sdfMonthYear.format(month.getTime()) + "\">");
-                out.println("      <input " + updatesCheckedString + " id=\"updatesRadio\" class=\"w3-button\" type=\"radio\" name=\"" + PARAM_DISPLAY_TYPE + "\" value=\"" + DISPLAY_TYPE_UPDATES + "\" onclick=\"this.form.submit()\">");
+                out.println("      <input type=\"hidden\" name=\"" + PARAM_MONTH + "\" value=\""
+                        + sdfMonthYear.format(month.getTime()) + "\">");
+                out.println("      <input " + updatesCheckedString
+                        + " id=\"updatesRadio\" class=\"w3-button\" type=\"radio\" name=\"" + PARAM_DISPLAY_TYPE
+                        + "\" value=\"" + DISPLAY_TYPE_UPDATES + "\" onclick=\"this.form.submit()\">");
                 out.println("      <label for=\"updatesRadio\">Updates</label>");
-                out.println("      <input " + queriesCheckedString + " id=\"queriesRadio\" class=\"w3-button\" type=\"radio\" name=\"" + PARAM_DISPLAY_TYPE + "\" value=\"" + DISPLAY_TYPE_QUERIES + "\" onclick=\"this.form.submit()\">");
+                out.println("      <input " + queriesCheckedString
+                        + " id=\"queriesRadio\" class=\"w3-button\" type=\"radio\" name=\"" + PARAM_DISPLAY_TYPE
+                        + "\" value=\"" + DISPLAY_TYPE_QUERIES + "\" onclick=\"this.form.submit()\">");
                 out.println("      <label for=\"queriesRadio\">Queries</label>");
                 out.println("   </form>");
                 out.println("</div>");
-                
+
                 Date pastMonth = DateUtils.addMonths(month.getTime(), -1);
                 Date futureMonth = DateUtils.addMonths(month.getTime(), 1);
 
@@ -413,16 +423,19 @@ public class ClearServlet extends HttpServlet {
                 out.println("<div class=\"w3-container\">");
                 out.println("<form method=\"GET\" action=\"/clear/clear\">");
                 out.println("   <input type=\"hidden\" name=\"" + PARAM_VIEW + "\" value=\"" + view + "\">");
-                out.println("   <input type=\"hidden\" name=\"" + PARAM_DISPLAY_TYPE + "\" value=\"" + displayType + "\">");
+                out.println(
+                        "   <input type=\"hidden\" name=\"" + PARAM_DISPLAY_TYPE + "\" value=\"" + displayType + "\">");
                 out.println("   <div class=\"w3-cell-row\">");
                 out.println("      <div class=\"w3-cell\">");
-                out.println("          <input class=\"w3-button\" type=\"submit\" name=\"" + PARAM_MONTH + "\" value=\"" + pastMonthString + "\" onclick=\"this.form.submit()\">");
+                out.println("          <input class=\"w3-button\" type=\"submit\" name=\"" + PARAM_MONTH + "\" value=\""
+                        + pastMonthString + "\" onclick=\"this.form.submit()\">");
                 out.println("      </div>");
                 out.println("      <div class=\"w3-cell\">");
                 out.println("          <p>" + sdfMonthYear.format(month.getTime()) + "</p>");
                 out.println("      </div>");
                 out.println("      <div class=\"w3-cell\">");
-                out.println("          <input class=\"w3-button\" type=\"submit\" name=\"" + PARAM_MONTH + "\" value=\"" + futureMonthString + "\" onclick=\"this.form.submit()\">");
+                out.println("          <input class=\"w3-button\" type=\"submit\" name=\"" + PARAM_MONTH + "\" value=\""
+                        + futureMonthString + "\" onclick=\"this.form.submit()\">");
                 out.println("      </div>");
                 out.println("   </div>");
                 out.println("</form>");
@@ -452,25 +465,28 @@ public class ClearServlet extends HttpServlet {
                 for (EntryForInterop efi : allEntries) {
                     Jurisdiction jurisdiction = efi.getJurisdiction();
                     int population = populationMap.get(jurisdiction.getDisplayLabel());
-                    if(sdfMonthYear.format(efi.getReportingPeriod()).equals(sdfMonthYear.format(month.getTime()))) {
+                    if (sdfMonthYear.format(efi.getReportingPeriod()).equals(sdfMonthYear.format(month.getTime()))) {
                         numEntries += 1;
                         popTotal += population;
                         updatesTotal += efi.getCountUpdate();
                         queriesTotal += efi.getCountQuery();
                         out.println("      <tr>");
                         out.println("           <td style=\"width:20%\">" + jurisdiction.getDisplayLabel() + "</td>");
-                        out.println("           <td class=\"formatted-number\" style=\"width:20%\">" + population + "</td>");
-                        out.println("           <td class=\"formatted-number\" style=\"width:20%\">" + efi.getCountUpdate() + "</td>");
-                        out.println("           <td class=\"formatted-number\" style=\"width:20%\">" + efi.getCountQuery() + "</td>");
-                        float uToP = (float) efi.getCountUpdate()/population;
+                        out.println("           <td class=\"formatted-number\" style=\"width:20%\">" + population
+                                + "</td>");
+                        out.println("           <td class=\"formatted-number\" style=\"width:20%\">"
+                                + efi.getCountUpdate() + "</td>");
+                        out.println("           <td class=\"formatted-number\" style=\"width:20%\">"
+                                + efi.getCountQuery() + "</td>");
+                        float uToP = (float) efi.getCountUpdate() / population;
                         uToPopTotal += uToP;
-                        float qToP = (float) efi.getCountQuery()/population;
+                        float qToP = (float) efi.getCountQuery() / population;
                         qToPopTotal += qToP;
-                        float uToQ = (float) efi.getCountUpdate()/efi.getCountQuery();
+                        float uToQ = (float) efi.getCountUpdate() / efi.getCountQuery();
                         uToQTotal += uToQ;
-                        out.println("           <td style=\"width:20%\">" +  String.format("%.2f",uToP) + "</td>");
-                        out.println("           <td style=\"width:20%\">" +  String.format("%.2f",qToP) + "</td>");
-                        out.println("           <td style=\"width:20%\">" +  String.format("%.2f",uToQ) + "</td>");
+                        out.println("           <td style=\"width:20%\">" + String.format("%.2f", uToP) + "</td>");
+                        out.println("           <td style=\"width:20%\">" + String.format("%.2f", qToP) + "</td>");
+                        out.println("           <td style=\"width:20%\">" + String.format("%.2f", uToQ) + "</td>");
                         out.println("      </tr>");
                     }
                 }
@@ -488,18 +504,18 @@ public class ClearServlet extends HttpServlet {
                 out.println("          <th>Total Updates/Queries </th>");
                 out.println("      </tr>");
                 out.println("      <tr>");
-                float uToPopAverage = uToPopTotal/numEntries;
-                float qToPopAverage = qToPopTotal/numEntries;
-                float uToQAverage = uToQTotal/numEntries;
-                out.println("           <td style=\"width:50%\">" +  String.format("%.2f",uToPopAverage) + "</td>");
-                out.println("           <td style=\"width:50%\">" +  String.format("%.2f",qToPopAverage) + "</td>");
-                out.println("           <td style=\"width:50%\">" +  String.format("%.2f",uToQAverage) + "</td>");
-                float totalUToPop = ((float)updatesTotal/numEntries)/((float)popTotal/numEntries);
-                float totalQToPop = ((float)queriesTotal/numEntries)/((float)popTotal/numEntries);
-                float totalUToQ = ((float)updatesTotal/numEntries)/((float)queriesTotal/numEntries);
-                out.println("           <td style=\"width:50%\">" +  String.format("%.2f",totalUToPop) + "</td>");
-                out.println("           <td style=\"width:50%\">" +  String.format("%.2f",totalQToPop) + "</td>");
-                out.println("           <td style=\"width:50%\">" +  String.format("%.2f",totalUToQ) + "</td>");
+                float uToPopAverage = uToPopTotal / numEntries;
+                float qToPopAverage = qToPopTotal / numEntries;
+                float uToQAverage = uToQTotal / numEntries;
+                out.println("           <td style=\"width:50%\">" + String.format("%.2f", uToPopAverage) + "</td>");
+                out.println("           <td style=\"width:50%\">" + String.format("%.2f", qToPopAverage) + "</td>");
+                out.println("           <td style=\"width:50%\">" + String.format("%.2f", uToQAverage) + "</td>");
+                float totalUToPop = ((float) updatesTotal / numEntries) / ((float) popTotal / numEntries);
+                float totalQToPop = ((float) queriesTotal / numEntries) / ((float) popTotal / numEntries);
+                float totalUToQ = ((float) updatesTotal / numEntries) / ((float) queriesTotal / numEntries);
+                out.println("           <td style=\"width:50%\">" + String.format("%.2f", totalUToPop) + "</td>");
+                out.println("           <td style=\"width:50%\">" + String.format("%.2f", totalQToPop) + "</td>");
+                out.println("           <td style=\"width:50%\">" + String.format("%.2f", totalUToQ) + "</td>");
                 out.println("      </tr>");
                 out.println("   </table>");
                 out.println("</div>");
@@ -586,14 +602,14 @@ public class ClearServlet extends HttpServlet {
         Query<Jurisdiction> jurisdictionQuery = session.createQuery("FROM Jurisdiction", Jurisdiction.class);
 
         for (Jurisdiction jur : jurisdictionQuery.list()) {
-            if(!jur.getMapLink().startsWith("A")) {
+            if (!jur.getMapLink().startsWith("A")) {
                 Random rand = new Random();
                 Calendar tmpCalendar = Calendar.getInstance();
                 tmpCalendar.add(Calendar.YEAR, -2);
                 tmpCalendar.set(Calendar.DAY_OF_MONTH, 1);
                 for (int i = 0; i < 25; i++) {
                     Date reportingPeriod = tmpCalendar.getTime();
-                
+
                     EntryForInterop newEntry = new EntryForInterop();
                     int userPopulation = populationMap.get(jur.getMapLink());
                     newEntry.setCountUpdate(
@@ -607,7 +623,7 @@ public class ClearServlet extends HttpServlet {
                     tmpCalendar.add(Calendar.MONTH, 1);
                 }
             }
-            
+
         }
         session.getTransaction().commit();
         return message;
@@ -625,7 +641,8 @@ public class ClearServlet extends HttpServlet {
         out.println("    <header class=\"w3-container w3-green\">");
         out.println("      <div class=\"w3-bar\">");
         out.println("        <h1>CLEAR - Community Led Exchange and Aggregate Reporting</h1> ");
-        out.println("        <a href=\"clear?" + PARAM_VIEW + "=" + VIEW_DATA + "&" + PARAM_JURISDICTION + "=" + selectedJurisdiction + "\" class=\"w3-bar-item w3-button\">Data</a> ");
+        out.println("        <a href=\"clear?" + PARAM_VIEW + "=" + VIEW_DATA + "&" + PARAM_JURISDICTION + "="
+                + selectedJurisdiction + "\" class=\"w3-bar-item w3-button\">Data</a> ");
         out.println("        <a href=\"clear?" + PARAM_VIEW + "=" + VIEW_MAP
                 + "\" class=\"w3-bar-item w3-button\">Map</a> ");
         out.println("        <a href=\"clear/email\" class=\"w3-bar-item w3-button\">Mail</a> ");
@@ -637,7 +654,7 @@ public class ClearServlet extends HttpServlet {
     protected void printFooter(PrintWriter out) {
         out.println("   </div>");
         out.println("  <div class=\"w3-container w3-green\">");
-        out.println("      <p>Step Into CDSi " + SoftwareVersion.VERSION + " - ");
+        out.println("      <p>CLEAR " + SoftwareVersion.VERSION + " - ");
         out.println(
                 "      <a href=\"https://aira.memberclicks.net/assets/docs/Organizational_Docs/AIRA%20Privacy%20Policy%20-%20Final%202024_.pdf\" class=\"underline\">AIRA Privacy Policy</a> - ");
         out.println(
