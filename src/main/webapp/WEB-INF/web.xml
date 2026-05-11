@@ -16,6 +16,11 @@
     </servlet>
 
     <servlet>
+        <servlet-name>admin</servlet-name>
+        <servlet-class>org.immregistries.clear.servlet.AdminServlet</servlet-class>
+    </servlet>
+
+    <servlet>
         <servlet-name>login</servlet-name>
         <servlet-class>org.immregistries.clear.servlet.LoginServlet</servlet-class>
     </servlet>
@@ -43,6 +48,11 @@
     <servlet-mapping>
         <servlet-name>email</servlet-name>
         <url-pattern>/clear/email</url-pattern>
+    </servlet-mapping>	 
+
+    <servlet-mapping>
+        <servlet-name>admin</servlet-name>
+        <url-pattern>/clear/admin</url-pattern>
     </servlet-mapping>	 
 
     <servlet-mapping>

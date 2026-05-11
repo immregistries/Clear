@@ -9,7 +9,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
@@ -611,7 +610,7 @@ public class ClearServlet extends HttpServlet {
         session.createNativeQuery("SET FOREIGN_KEY_CHECKS = 1").executeUpdate();
         session.getTransaction().commit();
 
-        // create fake jurisdictions
+        // create jurisdictions
         session.beginTransaction();
 
         for (String user : populationMap.keySet()) {
@@ -622,36 +621,7 @@ public class ClearServlet extends HttpServlet {
         }
         session.getTransaction().commit();
 
-        // get and randomize all jurisdiction numbers
-        session.beginTransaction();
-        message = "randomizing all numbers";
-        Query<Jurisdiction> jurisdictionQuery = session.createQuery("FROM Jurisdiction", Jurisdiction.class);
-
-        for (Jurisdiction jur : jurisdictionQuery.list()) {
-            if (!jur.getMapLink().startsWith("A")) {
-                Random rand = new Random();
-                Calendar tmpCalendar = Calendar.getInstance();
-                tmpCalendar.add(Calendar.YEAR, -2);
-                tmpCalendar.set(Calendar.DAY_OF_MONTH, 1);
-                for (int i = 0; i < 25; i++) {
-                    Date reportingPeriod = tmpCalendar.getTime();
-
-                    EntryForInterop newEntry = new EntryForInterop();
-                    int userPopulation = populationMap.get(jur.getMapLink());
-                    newEntry.setCountUpdate(
-                            (int) Math.round(rand.nextFloat() * (userPopulation / 2.0) + (userPopulation / 2.0)));
-                    newEntry.setCountQuery(
-                            (int) Math.round(rand.nextFloat() * (userPopulation / 2.0) + (userPopulation / 2.0)));
-                    newEntry.setReportingPeriod(reportingPeriod);
-                    newEntry.setJurisdiction(jur);
-                    newEntry.setContactId(0);
-                    session.save(newEntry);
-                    tmpCalendar.add(Calendar.MONTH, 1);
-                }
-            }
-
-        }
-        session.getTransaction().commit();
+        message = "Database reset with jurisdictions initialized.";
         return message;
     }
 
@@ -672,6 +642,7 @@ public class ClearServlet extends HttpServlet {
         out.println("        <a href=\"clear?" + PARAM_VIEW + "=" + VIEW_MAP
                 + "\" class=\"w3-bar-item w3-button\">Map</a> ");
         out.println("        <a href=\"clear/email\" class=\"w3-bar-item w3-button\">Mail</a> ");
+        out.println("        <a href=\"clear/admin\" class=\"w3-bar-item w3-button\">Admin</a> ");
         out.println("        <a href=\"logout\" class=\"w3-bar-item w3-button\">Logout</a> ");
         out.println("      </div>");
         out.println("      <div class=\"w3-small\">Signed in as " + sessionUser.getDisplayName()

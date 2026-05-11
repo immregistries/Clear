@@ -38,9 +38,6 @@ public final class ClearAuthSessionSupport {
     private static volatile String lastKnownHubUrl;
     private static volatile String lastKnownClearExternalUrl;
 
-    // ThreadLocal to hold client IP for Hub client to access
-    private static final ThreadLocal<String> CLIENT_IP_CONTEXT = new ThreadLocal<>();
-
     private ClearAuthSessionSupport() {
         // Utility class
     }
@@ -202,8 +199,12 @@ public final class ClearAuthSessionSupport {
             sessionUser.setContactId(contact.getContactId());
             sessionUser.setJurisdictionId(contact.getJurisdictionId());
             return sessionUser;
-        } finally {
-            CLIENT_IP_CONTEXT.remove();
+        } catch (Exception e) {
+            LOG.error("Unexpected error during Hub code exchange", e);
+            SessionUser denied = new SessionUser();
+            denied.setAllowed(false);
+            denied.setDenialReason("An unexpected error occurred during authentication.");
+            return denied;
         }
     }
 
@@ -315,23 +316,6 @@ public final class ClearAuthSessionSupport {
             basePath = basePath.substring(0, basePath.length() - 1);
         }
         return basePath + "/login";
-    }
-
-    private static String getCurrentUrl(HttpServletRequest request) {
-        String basePath = resolveClearExternalUrl();
-        if (basePath.endsWith("/")) {
-            basePath = basePath.substring(0, basePath.length() - 1);
-        }
-
-        String requestPath = request.getRequestURI();
-        String contextPath = request.getContextPath();
-        if (contextPath != null && !contextPath.isEmpty() && requestPath.startsWith(contextPath)) {
-            requestPath = requestPath.substring(contextPath.length());
-        }
-
-        String query = request.getQueryString();
-        String result = basePath + requestPath;
-        return query == null || query.isEmpty() ? result : result + "?" + query;
     }
 
     private static String buildDisplayName(String firstName, String lastName, String email) {

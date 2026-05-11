@@ -2,35 +2,36 @@ package org.immregistries.clear.servlet;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
-import java.util.Properties;
 import java.util.Random;
 
-import io.github.cdimascio.dotenv.Dotenv;
+import org.hibernate.Transaction;
 import org.immregistries.clear.utils.HibernateUtil;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.mail.Message;
-import jakarta.mail.MessagingException;
-import jakarta.mail.PasswordAuthentication;
-import jakarta.mail.Session;
-import jakarta.mail.Transport;
-import jakarta.mail.internet.InternetAddress;
-import jakarta.mail.internet.MimeMessage;
 
+import org.hibernate.Session;
 import org.hibernate.query.Query;
+import org.immregistries.clear.ClearConfig;
 import org.immregistries.clear.SoftwareVersion;
 import org.immregistries.clear.model.Jurisdiction;
 import org.immregistries.clear.model.ValidationCode;
+import org.immregistries.clear.service.EmailService;
+import org.immregistries.clear.utils.SystemSettingSupport;
 
 public class EmailServlet extends HttpServlet {
 
     public static final String PARAM_VIEW = "view";
     public static final String VIEW_MAP = "map";
     public static final String VIEW_DATA = "data";
+    private static final String CLEAR_EXTERNAL_URL_SETTING_KEY = "clear.external.url";
+
+    private final EmailService emailService = new EmailService();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
@@ -43,7 +44,14 @@ public class EmailServlet extends HttpServlet {
         try {
             System.out.println("--> printing header");
             printHeader(out);
-            out.println("<h1>Send Email</h3>");
+            out.println("<h1>Send Email</h1>");
+
+            String message = req.getParameter("message");
+            if (message != null && !message.trim().isEmpty()) {
+                String panelClass = "1".equals(req.getParameter("error")) ? "w3-pale-red" : "w3-pale-green";
+                out.println("<div class=\"w3-panel " + panelClass + "\">" + escapeHtml(message) + "</div>");
+            }
+
             out.println("<form method=\"POST\">");
             out.println("   <input id=\"emailInput\" type=\"email\" name=\"emailInput\">");
             out.println("      <label for=\"emailInput\">Recipient</label></br></br>");
@@ -71,57 +79,64 @@ public class EmailServlet extends HttpServlet {
             throws ServletException, IOException {
 
         String to = req.getParameter("emailInput");
-        Dotenv dotenv = Dotenv.load();
-        String from = dotenv.get("GMAIL_USERNAME");
-        final String username = dotenv.get("GMAIL_USERNAME");
-        final String password = dotenv.get("GMAIL_PASSWORD");
         String jurisdiction = req.getParameter("jurisdictionInput");
-        String host = "smtp.gmail.com";
 
-        org.hibernate.Session session = HibernateUtil.getSessionFactory().openSession();
-        session.beginTransaction();
-        Random rand = new Random();
-        Query<Jurisdiction> jurQuery = session.createQuery("FROM Jurisdiction WHERE mapLink = :jurisdiction",
-                Jurisdiction.class);
-        jurQuery.setParameter("jurisdiction", jurisdiction);
-        ValidationCode vc = new ValidationCode();
+        Session session = HibernateUtil.getSessionFactory().openSession();
+        Transaction tx = session.beginTransaction();
+        boolean txCommitted = false;
+        try {
+            Random rand = new Random();
+            Query<Jurisdiction> jurQuery = session.createQuery("FROM Jurisdiction WHERE mapLink = :jurisdiction",
+                    Jurisdiction.class);
+            jurQuery.setParameter("jurisdiction", jurisdiction);
+            ValidationCode vc = new ValidationCode();
 
-        vc.setJurisdictionId(jurQuery.getResultList().get(0).getJurisdictionId());
-        vc.setIssueDate(new Date());
-        vc.setAccessCode((int) (rand.nextFloat() * 999999));
-        session.save(vc);
-        session.getTransaction().commit();
+            vc.setJurisdictionId(jurQuery.getResultList().get(0).getJurisdictionId());
+            vc.setIssueDate(new Date());
+            vc.setAccessCode((int) (rand.nextFloat() * 999999));
+            session.save(vc);
+            tx.commit();
+            txCommitted = true;
 
-        sendEmail(jurisdiction, to, from, username, password, host, vc.getAccessCode());
+            String formattedJurisdiction = jurisdiction.replace(' ', '-');
+            String clearExternalUrl = SystemSettingSupport.getValueOrDefault(
+                    CLEAR_EXTERNAL_URL_SETTING_KEY,
+                    ClearConfig.CLEAR_EXTERNAL_URL);
+            if (clearExternalUrl == null || clearExternalUrl.trim().isEmpty()) {
+                clearExternalUrl = "http://localhost:8080/clear";
+            }
+            String normalizedBaseUrl = clearExternalUrl.endsWith("/")
+                    ? clearExternalUrl.substring(0, clearExternalUrl.length() - 1)
+                    : clearExternalUrl;
+            String clearUrl = normalizedBaseUrl + "/clear?view=data&jurisdiction="
+                    + formattedJurisdiction + "&access_code=" + vc.getAccessCode();
 
-        doGet(req, resp);
+            String body = "enter clear\n" + clearUrl;
+            emailService.sendPlainTextEmail(to, "CLEAR", body);
+            resp.sendRedirect(req.getContextPath() + "/clear/email?message="
+                    + URLEncoder.encode("Email sent.", StandardCharsets.UTF_8));
+        } catch (RuntimeException e) {
+            if (!txCommitted && tx != null) {
+                tx.rollback();
+            }
+            resp.sendRedirect(req.getContextPath() + "/clear/email?error=1&message="
+                    + URLEncoder.encode("Unable to send email. Verify SMTP settings in Admin.",
+                            StandardCharsets.UTF_8));
+        } finally {
+            session.close();
+        }
     }
 
-    protected void sendEmail(String jurisdiction, String to, String from, String username, String password, String host,
-            int accessCode) {
-        Properties props = new Properties();
-        props.put("mail.smtp.auth", "true");
-        props.put("mail.smtp.starttls.enable", "true");
-        props.put("mail.smtp.host", host);
-        props.put("mail.smtp.port", "587");
-        Session session = Session.getInstance(props, new jakarta.mail.Authenticator() {
-            protected PasswordAuthentication getPasswordAuthentication() {
-                return new PasswordAuthentication(username, password);
-            }
-        });
-        try {
-            Message message = new MimeMessage(session);
-            message.setFrom(new InternetAddress(from));
-            message.setRecipient(Message.RecipientType.TO, new InternetAddress(to));
-            message.setSubject("CLEAR");
-            String formattedJurisdiction = jurisdiction.replace(' ', '-');
-            message.setText("enter clear\nhttp://localhost:8080/clear/clear?view=data&jurisdiction="
-                    + formattedJurisdiction + "&access_code=" + accessCode);
-
-            Transport.send(message);
-        } catch (MessagingException e) {
-            throw new RuntimeException(e);
+    private String escapeHtml(String value) {
+        if (value == null) {
+            return "";
         }
+        return value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
     }
 
     protected void printHeader(PrintWriter out) {
@@ -141,6 +156,7 @@ public class EmailServlet extends HttpServlet {
         out.println("        <a href=\"/clear/clear?" + PARAM_VIEW + "=" + VIEW_MAP
                 + "\" class=\"w3-bar-item w3-button\">Map</a> ");
         out.println("        <a href=\"\" class=\"w3-bar-item w3-button\">Mail</a> ");
+        out.println("        <a href=\"/clear/admin\" class=\"w3-bar-item w3-button\">Admin</a> ");
         out.println("      </div>");
         out.println("    </header>");
         out.println("    <div class=\"w3-container\">");
