@@ -30,6 +30,9 @@
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<maven.compiler.release>17</maven.compiler.release>
+		<interophub.client.version>1.1.0</interophub.client.version>
+		<clear.external.url>https://informatics.immregistries.org/clear</clear.external.url>
+		<auth.enabled>true</auth.enabled>
 		<!-- allowed values: R7, 1.0, 1.5, 2.0 or none -->
 	</properties>
 
@@ -111,6 +114,12 @@
 			<groupId>io.github.cdimascio</groupId>
 			<artifactId>dotenv-java</artifactId>
 			<version>3.0.0</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.immregistries</groupId>
+			<artifactId>interophub-client</artifactId>
+			<version>${interophub.client.version}</version>
 		</dependency>
 
 		<dependency>

@@ -16,7 +16,6 @@ import org.hibernate.annotations.OptimisticLocking;
 @DynamicUpdate
 @OptimisticLocking(type = OptimisticLockType.ALL)
 @Table(name = "Contact")
-@SuppressWarnings("unused")
 public class Contact {
 
     @Id
@@ -35,5 +34,57 @@ public class Contact {
     private Date dateAccess;
 
     private Date dateCreated;
+
+    public int getContactId() {
+        return contactId;
+    }
+
+    public int getJurisdictionId() {
+        return jurisdictionId;
+    }
+
+    public void setJurisdictionId(int jurisdictionId) {
+        this.jurisdictionId = jurisdictionId;
+    }
+
+    public String getNameFirst() {
+        return nameFirst;
+    }
+
+    public void setNameFirst(String nameFirst) {
+        this.nameFirst = nameFirst;
+    }
+
+    public String getNameLast() {
+        return nameLast;
+    }
+
+    public void setNameLast(String nameLast) {
+        this.nameLast = nameLast;
+    }
+
+    public String getEmailAddress() {
+        return emailAddress;
+    }
+
+    public void setEmailAddress(String emailAddress) {
+        this.emailAddress = emailAddress;
+    }
+
+    public Date getDateAccess() {
+        return dateAccess;
+    }
+
+    public void setDateAccess(Date dateAccess) {
+        this.dateAccess = dateAccess;
+    }
+
+    public Date getDateCreated() {
+        return dateCreated;
+    }
+
+    public void setDateCreated(Date dateCreated) {
+        this.dateCreated = dateCreated;
+    }
 
 }
