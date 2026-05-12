@@ -9,6 +9,7 @@
         <property name="hibernate.hbm2ddl.auto">update</property>
         <mapping class="org.immregistries.clear.model.EntryForInterop"></mapping>
         <mapping class="org.immregistries.clear.model.Contact"></mapping>
+        <mapping class="org.immregistries.clear.model.ContactJurisdictionAccess"></mapping>
         <mapping class="org.immregistries.clear.model.Jurisdiction"></mapping>
         <mapping class="org.immregistries.clear.model.ValidationCode"></mapping>
         <mapping class="org.immregistries.clear.model.SystemSetting"></mapping>

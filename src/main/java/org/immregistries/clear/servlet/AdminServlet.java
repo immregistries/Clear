@@ -30,8 +30,10 @@ import org.immregistries.clear.SoftwareVersion;
 import org.immregistries.clear.auth.ClearAuthSessionSupport;
 import org.immregistries.clear.auth.SessionUser;
 import org.immregistries.clear.model.Contact;
+import org.immregistries.clear.model.ContactJurisdictionAccess;
 import org.immregistries.clear.model.EntryForInterop;
 import org.immregistries.clear.model.Jurisdiction;
+import org.immregistries.clear.model.JurisdictionAccessRole;
 import org.immregistries.clear.model.SystemSetting;
 import org.immregistries.clear.service.EmailService;
 import org.immregistries.clear.utils.HibernateUtil;
@@ -44,7 +46,13 @@ public class AdminServlet extends HttpServlet {
     private static final String PARAM_ACTION = "action";
     private static final String ACTION_DOWNLOAD_ENTRY_FOR_INTEROP = "downloadEntryForInterop";
     private static final String ACTION_UPLOAD_ENTRY_FOR_INTEROP = "uploadEntryForInterop";
+    private static final String ACTION_SAVE_ACCESS_OVERRIDE = "saveAccessOverride";
+    private static final String ACTION_DELETE_ACCESS_OVERRIDE = "deleteAccessOverride";
     private static final String PARAM_ENTRY_FOR_INTEROP_FILE = "entryForInteropFile";
+    private static final String PARAM_ACCESS_OVERRIDE_ID = "accessOverrideId";
+    private static final String PARAM_ACCESS_CONTACT_ID = "accessContactId";
+    private static final String PARAM_ACCESS_JURISDICTION_ID = "accessJurisdictionId";
+    private static final String PARAM_ACCESS_ROLE = "accessRole";
 
     private static final String CSV_HEADER_REPORTING_PERIOD = "Date time of reporting period";
     private static final String CSV_HEADER_UPDATE_COUNT = "Update count";
@@ -169,6 +177,14 @@ public class AdminServlet extends HttpServlet {
         String action = normalize(req.getParameter(PARAM_ACTION));
         if (ACTION_UPLOAD_ENTRY_FOR_INTEROP.equals(action)) {
             handleEntryForInteropUpload(req, resp, sessionUser);
+            return;
+        }
+        if (ACTION_SAVE_ACCESS_OVERRIDE.equals(action)) {
+            handleSaveAccessOverride(req, resp, sessionUser);
+            return;
+        }
+        if (ACTION_DELETE_ACCESS_OVERRIDE.equals(action)) {
+            handleDeleteAccessOverride(req, resp, sessionUser);
             return;
         }
 
@@ -306,6 +322,84 @@ public class AdminServlet extends HttpServlet {
                 tx.rollback();
             }
             renderPage(resp, sessionUser, values, "Unable to upload CSV: " + e.getMessage(), true);
+        } finally {
+            session.close();
+        }
+    }
+
+    private void handleSaveAccessOverride(HttpServletRequest req, HttpServletResponse resp,
+            SessionUser sessionUser) throws IOException {
+        Map<String, String> values = loadSettingValues();
+        Session session = HibernateUtil.getSessionFactory().openSession();
+        Transaction tx = null;
+        try {
+            Integer overrideId = parseInteger(req.getParameter(PARAM_ACCESS_OVERRIDE_ID));
+            Integer contactId = parseRequiredInteger(req.getParameter(PARAM_ACCESS_CONTACT_ID), "Contact");
+            Integer jurisdictionId = parseRequiredInteger(req.getParameter(PARAM_ACCESS_JURISDICTION_ID),
+                    "Jurisdiction");
+            JurisdictionAccessRole accessRole = parseAccessRole(req.getParameter(PARAM_ACCESS_ROLE));
+
+            Contact contact = session.get(Contact.class, contactId);
+            if (contact == null) {
+                throw new IllegalArgumentException("Selected contact was not found.");
+            }
+            Jurisdiction jurisdiction = session.get(Jurisdiction.class, jurisdictionId);
+            if (jurisdiction == null) {
+                throw new IllegalArgumentException("Selected jurisdiction was not found.");
+            }
+
+            tx = session.beginTransaction();
+            ContactJurisdictionAccess accessOverride = findExistingAccessOverride(session, overrideId, contactId,
+                    jurisdictionId);
+            if (accessRole == JurisdictionAccessRole.PRIMARY_REPORTER) {
+                ensurePrimaryReporterAvailable(session, jurisdictionId, accessOverride == null
+                        ? null
+                        : Integer.valueOf(accessOverride.getContactJurisdictionAccessId()));
+            }
+
+            if (accessOverride == null) {
+                accessOverride = new ContactJurisdictionAccess();
+                accessOverride.setDateCreated(new Date());
+            }
+            accessOverride.setContactId(contactId.intValue());
+            accessOverride.setJurisdictionId(jurisdictionId.intValue());
+            accessOverride.setAccessRole(accessRole);
+            accessOverride.setDateUpdated(new Date());
+            accessOverride.setUpdatedByContactId(sessionUser.getContactId());
+            session.saveOrUpdate(accessOverride);
+            tx.commit();
+
+            renderPage(resp, sessionUser, values, "Access override saved.", false);
+        } catch (Exception e) {
+            if (tx != null) {
+                tx.rollback();
+            }
+            renderPage(resp, sessionUser, values, "Unable to save access override: " + e.getMessage(), true);
+        } finally {
+            session.close();
+        }
+    }
+
+    private void handleDeleteAccessOverride(HttpServletRequest req, HttpServletResponse resp,
+            SessionUser sessionUser) throws IOException {
+        Map<String, String> values = loadSettingValues();
+        Session session = HibernateUtil.getSessionFactory().openSession();
+        Transaction tx = null;
+        try {
+            Integer overrideId = parseRequiredInteger(req.getParameter(PARAM_ACCESS_OVERRIDE_ID), "Access override");
+            tx = session.beginTransaction();
+            ContactJurisdictionAccess accessOverride = session.get(ContactJurisdictionAccess.class, overrideId);
+            if (accessOverride == null) {
+                throw new IllegalArgumentException("Selected access override was not found.");
+            }
+            session.remove(accessOverride);
+            tx.commit();
+            renderPage(resp, sessionUser, values, "Access override removed.", false);
+        } catch (Exception e) {
+            if (tx != null) {
+                tx.rollback();
+            }
+            renderPage(resp, sessionUser, values, "Unable to remove access override: " + e.getMessage(), true);
         } finally {
             session.close();
         }
@@ -644,7 +738,11 @@ public class AdminServlet extends HttpServlet {
             throws IOException {
         resp.setContentType("text/html");
         PrintWriter out = new PrintWriter(resp.getOutputStream());
+        Session session = HibernateUtil.getSessionFactory().openSession();
         try {
+            List<Contact> contacts = loadContacts(session);
+            List<Jurisdiction> jurisdictions = loadJurisdictions(session);
+            List<AccessOverrideDisplay> accessOverrides = loadAccessOverrides(session);
             printHeader(out, sessionUser);
             out.println("<h2>Admin</h2>");
             out.println("<h3>System Settings</h3>");
@@ -689,10 +787,195 @@ public class AdminServlet extends HttpServlet {
             out.println("  <p><button class=\"w3-button w3-orange\" type=\"submit\">Upload CSV</button></p>");
             out.println("</form>");
 
+            out.println("<hr>");
+            out.println("<h3>Jurisdiction Access Overrides</h3>");
+            out.println(
+                    "<p>Only explicit overrides are stored here. Home-jurisdiction access remains implicit unless overridden.</p>");
+            out.println("<form method=\"POST\" class=\"w3-container\" style=\"max-width: 720px; padding-left: 0;\">");
+            out.println("  <input type=\"hidden\" name=\"" + PARAM_ACTION + "\" value=\""
+                    + ACTION_SAVE_ACCESS_OVERRIDE + "\">");
+            out.println("  <input type=\"hidden\" name=\"" + PARAM_ACCESS_OVERRIDE_ID + "\" value=\"\">");
+            out.println("  <p><label>Contact</label>");
+            out.println("  <select class=\"w3-select\" name=\"" + PARAM_ACCESS_CONTACT_ID + "\">");
+            out.println("    <option value=\"\">Select contact</option>");
+            for (Contact contact : contacts) {
+                out.println("    <option value=\"" + contact.getContactId() + "\">"
+                        + escapeHtml(formatContactLabel(contact)) + "</option>");
+            }
+            out.println("  </select></p>");
+            out.println("  <p><label>Jurisdiction</label>");
+            out.println("  <select class=\"w3-select\" name=\"" + PARAM_ACCESS_JURISDICTION_ID + "\">");
+            out.println("    <option value=\"\">Select jurisdiction</option>");
+            for (Jurisdiction jurisdiction : jurisdictions) {
+                out.println("    <option value=\"" + jurisdiction.getJurisdictionId() + "\">"
+                        + escapeHtml(jurisdiction.getDisplayLabel()) + "</option>");
+            }
+            out.println("  </select></p>");
+            out.println("  <p><label>Access Role</label>");
+            out.println("  <select class=\"w3-select\" name=\"" + PARAM_ACCESS_ROLE + "\">");
+            for (JurisdictionAccessRole accessRole : JurisdictionAccessRole.values()) {
+                out.println("    <option value=\"" + accessRole.name() + "\">"
+                        + escapeHtml(formatRoleLabel(accessRole)) + "</option>");
+            }
+            out.println("  </select></p>");
+            out.println("  <p><button class=\"w3-button w3-teal\" type=\"submit\">Save Access Override</button></p>");
+            out.println("</form>");
+
+            out.println("<table class=\"w3-table w3-bordered w3-striped\">");
+            out.println(
+                    "  <tr><th>Contact</th><th>Home Jurisdiction</th><th>Override Jurisdiction</th><th>Role</th><th>Updated</th><th>Action</th></tr>");
+            for (AccessOverrideDisplay accessOverride : accessOverrides) {
+                out.println("  <tr>");
+                out.println("    <td>" + escapeHtml(accessOverride.contactLabel) + "</td>");
+                out.println("    <td>" + escapeHtml(accessOverride.homeJurisdictionLabel) + "</td>");
+                out.println("    <td>" + escapeHtml(accessOverride.overrideJurisdictionLabel) + "</td>");
+                out.println("    <td>" + escapeHtml(formatRoleLabel(accessOverride.accessRole)) + "</td>");
+                out.println("    <td>" + escapeHtml(accessOverride.updatedLabel) + "</td>");
+                out.println("    <td>");
+                out.println("      <form method=\"POST\" style=\"margin:0\">");
+                out.println("        <input type=\"hidden\" name=\"" + PARAM_ACTION + "\" value=\""
+                        + ACTION_DELETE_ACCESS_OVERRIDE + "\">");
+                out.println("        <input type=\"hidden\" name=\"" + PARAM_ACCESS_OVERRIDE_ID + "\" value=\""
+                        + accessOverride.accessOverrideId + "\">");
+                out.println("        <button class=\"w3-button w3-small w3-red\" type=\"submit\">Remove</button>");
+                out.println("      </form>");
+                out.println("    </td>");
+                out.println("  </tr>");
+            }
+            out.println("</table>");
+
             printFooter(out);
         } finally {
+            session.close();
             out.close();
         }
+    }
+
+    private List<Contact> loadContacts(Session session) {
+        Query<Contact> query = session.createQuery("FROM Contact ORDER BY nameLast, nameFirst, emailAddress",
+                Contact.class);
+        return query.list();
+    }
+
+    private List<Jurisdiction> loadJurisdictions(Session session) {
+        Query<Jurisdiction> query = session.createQuery("FROM Jurisdiction ORDER BY displayLabel", Jurisdiction.class);
+        return query.list();
+    }
+
+    private List<AccessOverrideDisplay> loadAccessOverrides(Session session) {
+        Map<Integer, Contact> contactById = new HashMap<Integer, Contact>();
+        for (Contact contact : loadContacts(session)) {
+            contactById.put(contact.getContactId(), contact);
+        }
+        Map<Integer, Jurisdiction> jurisdictionById = new HashMap<Integer, Jurisdiction>();
+        for (Jurisdiction jurisdiction : loadJurisdictions(session)) {
+            jurisdictionById.put(jurisdiction.getJurisdictionId(), jurisdiction);
+        }
+
+        Query<ContactJurisdictionAccess> query = session.createQuery(
+                "FROM ContactJurisdictionAccess ORDER BY jurisdictionId, contactId", ContactJurisdictionAccess.class);
+        List<AccessOverrideDisplay> accessOverrides = new ArrayList<AccessOverrideDisplay>();
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm");
+        for (ContactJurisdictionAccess access : query.list()) {
+            Contact contact = contactById.get(access.getContactId());
+            Jurisdiction overrideJurisdiction = jurisdictionById.get(access.getJurisdictionId());
+            AccessOverrideDisplay display = new AccessOverrideDisplay();
+            display.accessOverrideId = access.getContactJurisdictionAccessId();
+            display.contactLabel = contact == null ? "Unknown contact #" + access.getContactId()
+                    : formatContactLabel(contact);
+            Jurisdiction homeJurisdiction = contact == null ? null : jurisdictionById.get(contact.getJurisdictionId());
+            display.homeJurisdictionLabel = homeJurisdiction == null ? "" : homeJurisdiction.getDisplayLabel();
+            display.overrideJurisdictionLabel = overrideJurisdiction == null
+                    ? "Unknown jurisdiction #" + access.getJurisdictionId()
+                    : overrideJurisdiction.getDisplayLabel();
+            display.accessRole = access.getAccessRole();
+            display.updatedLabel = access.getDateUpdated() == null ? "" : sdf.format(access.getDateUpdated());
+            accessOverrides.add(display);
+        }
+        return accessOverrides;
+    }
+
+    private ContactJurisdictionAccess findExistingAccessOverride(Session session, Integer overrideId, Integer contactId,
+            Integer jurisdictionId) {
+        if (overrideId != null) {
+            return session.get(ContactJurisdictionAccess.class, overrideId);
+        }
+        Query<ContactJurisdictionAccess> query = session.createQuery(
+                "FROM ContactJurisdictionAccess WHERE contactId = :contactId AND jurisdictionId = :jurisdictionId",
+                ContactJurisdictionAccess.class);
+        query.setParameter("contactId", contactId);
+        query.setParameter("jurisdictionId", jurisdictionId);
+        List<ContactJurisdictionAccess> results = query.list();
+        return results.isEmpty() ? null : results.get(0);
+    }
+
+    private void ensurePrimaryReporterAvailable(Session session, int jurisdictionId, Integer currentOverrideId) {
+        Query<ContactJurisdictionAccess> query = session.createQuery(
+                "FROM ContactJurisdictionAccess WHERE jurisdictionId = :jurisdictionId AND accessRole = :accessRole",
+                ContactJurisdictionAccess.class);
+        query.setParameter("jurisdictionId", jurisdictionId);
+        query.setParameter("accessRole", JurisdictionAccessRole.PRIMARY_REPORTER);
+        for (ContactJurisdictionAccess existing : query.list()) {
+            if (currentOverrideId == null
+                    || existing.getContactJurisdictionAccessId() != currentOverrideId.intValue()) {
+                throw new IllegalArgumentException("This jurisdiction already has a primary reporter override.");
+            }
+        }
+    }
+
+    private Integer parseInteger(String value) {
+        String normalized = normalize(value);
+        if (normalized == null) {
+            return null;
+        }
+        return Integer.valueOf(normalized);
+    }
+
+    private Integer parseRequiredInteger(String value, String label) {
+        Integer parsed = parseInteger(value);
+        if (parsed == null) {
+            throw new IllegalArgumentException(label + " is required.");
+        }
+        return parsed;
+    }
+
+    private JurisdictionAccessRole parseAccessRole(String value) {
+        String normalized = normalize(value);
+        if (normalized == null) {
+            throw new IllegalArgumentException("Access role is required.");
+        }
+        try {
+            return JurisdictionAccessRole.valueOf(normalized);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Access role is invalid.");
+        }
+    }
+
+    private String formatContactLabel(Contact contact) {
+        StringBuilder label = new StringBuilder();
+        if (normalize(contact.getNameLast()) != null) {
+            label.append(contact.getNameLast());
+        }
+        if (normalize(contact.getNameFirst()) != null) {
+            if (label.length() > 0) {
+                label.append(", ");
+            }
+            label.append(contact.getNameFirst());
+        }
+        if (normalize(contact.getEmailAddress()) != null) {
+            if (label.length() > 0) {
+                label.append(" - ");
+            }
+            label.append(contact.getEmailAddress());
+        }
+        if (label.length() == 0) {
+            return "Contact #" + contact.getContactId();
+        }
+        return label.toString();
+    }
+
+    private String formatRoleLabel(JurisdictionAccessRole accessRole) {
+        return accessRole.name().replace('_', ' ').toLowerCase(Locale.ROOT);
     }
 
     private void printHeader(PrintWriter out, SessionUser sessionUser) {
@@ -823,5 +1106,14 @@ public class AdminServlet extends HttpServlet {
         private String contactFirstName;
         private String contactLastName;
         private Jurisdiction jurisdiction;
+    }
+
+    private static class AccessOverrideDisplay {
+        private int accessOverrideId;
+        private String contactLabel;
+        private String homeJurisdictionLabel;
+        private String overrideJurisdictionLabel;
+        private JurisdictionAccessRole accessRole;
+        private String updatedLabel;
     }
 }

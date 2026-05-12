@@ -20,6 +20,8 @@ import org.immregistries.clear.auth.SessionUser;
 import org.immregistries.clear.SoftwareVersion;
 import org.immregistries.clear.model.EntryForInterop;
 import org.immregistries.clear.model.Jurisdiction;
+import org.immregistries.clear.model.JurisdictionAccessRole;
+import org.immregistries.clear.service.JurisdictionAccessService;
 import org.immregistries.clear.servlet.maps.Color;
 import org.immregistries.clear.servlet.maps.MapEntityMaker;
 import org.immregistries.clear.servlet.maps.MapPlace;
@@ -40,6 +42,10 @@ public class ClearServlet extends HttpServlet {
     public static final String PARAM_ACTION = "action";
     public static final String ACTION_SAVE = "Save";
 
+    public static final String PARAM_MODE = "mode";
+    public static final String MODE_VIEW = "view";
+    public static final String MODE_EDIT = "edit";
+
     public static final String PARAM_MONTH = "month";
 
     public static final String PARAM_DISPLAY_TYPE = "display_type";
@@ -47,6 +53,8 @@ public class ClearServlet extends HttpServlet {
     public static final String DISPLAY_TYPE_QUERIES = "queries";
 
     public static Map<String, Integer> populationMap = new HashMap<String, Integer>();
+
+    private final JurisdictionAccessService jurisdictionAccessService = new JurisdictionAccessService();
 
     static {
         populationMap.put("AL", 5025369);
@@ -129,8 +137,11 @@ public class ClearServlet extends HttpServlet {
         if (req.getParameter(PARAM_VIEW) != null) {
             view = req.getParameter(PARAM_VIEW);
         }
+        String mode = req.getParameter(PARAM_MODE);
         String selectedJurisdictionMapLink = "AZ";
         Jurisdiction selectedJurisdiction = null;
+        List<Jurisdiction> accessibleJurisdictions = null;
+        JurisdictionAccessRole selectedAccessRole = JurisdictionAccessRole.NOT_AUTHORIZED;
         if (req.getParameter(PARAM_JURISDICTION) != null) {
             selectedJurisdictionMapLink = req.getParameter(PARAM_JURISDICTION).replace('-', ' ');
         }
@@ -166,28 +177,45 @@ public class ClearServlet extends HttpServlet {
             Query<Jurisdiction> jurisdictionList;
             {
                 jurisdictionList = getJurisdictionList(session);
-                if (jurisdictionList.list().size() == 0) {
+                List<Jurisdiction> allJurisdictions = jurisdictionList.list();
+                if (allJurisdictions.size() == 0) {
                     if (adminUser) {
                         message = resetDatabase(session);
                     } else {
                         message = "No jurisdictions are configured yet.";
                     }
                     jurisdictionList = getJurisdictionList(session);
+                    allJurisdictions = jurisdictionList.list();
                 }
-                for (Jurisdiction j : jurisdictionList.list()) {
+                accessibleJurisdictions = jurisdictionAccessService.getAccessibleJurisdictions(session, sessionUser,
+                        allJurisdictions);
+                for (Jurisdiction j : accessibleJurisdictions) {
                     if (j.getMapLink().equals(selectedJurisdictionMapLink)) {
                         selectedJurisdiction = j;
                     }
                 }
-                if (!adminUser) {
-                    selectedJurisdiction = session.get(Jurisdiction.class, sessionUser.getJurisdictionId());
-                    if (selectedJurisdiction != null) {
-                        selectedJurisdictionMapLink = selectedJurisdiction.getMapLink().replace(' ', '-');
+                if (selectedJurisdiction == null && sessionUser.getJurisdictionId() != null) {
+                    for (Jurisdiction j : accessibleJurisdictions) {
+                        if (j.getJurisdictionId() == sessionUser.getJurisdictionId().intValue()) {
+                            selectedJurisdiction = j;
+                            break;
+                        }
                     }
                 }
-                if (selectedJurisdiction == null && !jurisdictionList.list().isEmpty()) {
-                    selectedJurisdiction = jurisdictionList.list().get(0);
+                if (selectedJurisdiction == null && !accessibleJurisdictions.isEmpty()) {
+                    selectedJurisdiction = accessibleJurisdictions.get(0);
+                }
+                if (selectedJurisdiction != null) {
                     selectedJurisdictionMapLink = selectedJurisdiction.getMapLink().replace(' ', '-');
+                    selectedAccessRole = jurisdictionAccessService.getEffectiveAccessRole(session, sessionUser,
+                            selectedJurisdiction.getJurisdictionId());
+                }
+                if (mode == null || mode.equals("")) {
+                    mode = selectedJurisdiction != null
+                            && jurisdictionAccessService.startsInEditMode(session, sessionUser,
+                                    selectedJurisdiction.getJurisdictionId())
+                                            ? MODE_EDIT
+                                            : MODE_VIEW;
                 }
             }
 
@@ -210,52 +238,58 @@ public class ClearServlet extends HttpServlet {
             String action = req.getParameter(PARAM_ACTION);
             if (action != null) {
                 if (action.equals(ACTION_SAVE)) {
-                    HashMap<String, EntryForInterop> entryForInteropMap = getEntryForInteropMap(selectedJurisdiction,
-                            session);
+                    if (!jurisdictionAccessService.canEdit(session, sessionUser,
+                            selectedJurisdiction.getJurisdictionId())) {
+                        message = "You are not authorized to edit data for this jurisdiction.";
+                    } else {
+                        HashMap<String, EntryForInterop> entryForInteropMap = getEntryForInteropMap(
+                                selectedJurisdiction,
+                                session);
 
-                    Calendar tmpCalendar = Calendar.getInstance();
-                    tmpCalendar.add(Calendar.YEAR, -2);
-                    tmpCalendar.set(Calendar.DAY_OF_MONTH, 1);
-                    int saveCount = 0;
-                    Transaction transaction = session.beginTransaction();
-                    for (int i = 0; i < 25; i++) {
-                        SimpleDateFormat sdfRowName = new SimpleDateFormat("MMMMYYYY");
-                        Date reportingPeriod = tmpCalendar.getTime();
-                        String rowName = sdfRowName.format(reportingPeriod);
-                        String countUpdateString = req.getParameter(rowName + "-Updates");
-                        String countQueryString = req.getParameter(rowName + "-Queries");
-                        int countUpdate = 0;
-                        if (countUpdateString != null && !countUpdateString.equals("")) {
-                            countUpdate = Integer.parseInt(countUpdateString);
-                        }
-                        int countQuery = 0;
-                        if (countQueryString != null && !countQueryString.equals("")) {
-                            countQuery = Integer.parseInt(countQueryString);
-                        }
-
-                        EntryForInterop efi = entryForInteropMap.get(sdfRowName.format(reportingPeriod));
-                        if (efi != null) {
-                            efi.setCountUpdate(countUpdate);
-                            efi.setCountQuery(countQuery);
-                            session.update(efi);
-                            saveCount++;
-                        } else if (countUpdate > 0 || countQuery > 0) {
-                            EntryForInterop newEntry = new EntryForInterop();
-                            newEntry.setCountUpdate(countUpdate);
-                            newEntry.setCountQuery(countQuery);
-                            newEntry.setReportingPeriod(reportingPeriod);
-                            newEntry.setJurisdiction(selectedJurisdiction);
-                            if (sessionUser.getContactId() != null) {
-                                newEntry.setContactId(sessionUser.getContactId());
+                        Calendar tmpCalendar = Calendar.getInstance();
+                        tmpCalendar.add(Calendar.YEAR, -2);
+                        tmpCalendar.set(Calendar.DAY_OF_MONTH, 1);
+                        int saveCount = 0;
+                        Transaction transaction = session.beginTransaction();
+                        for (int i = 0; i < 25; i++) {
+                            SimpleDateFormat sdfRowName = new SimpleDateFormat("MMMMYYYY");
+                            Date reportingPeriod = tmpCalendar.getTime();
+                            String rowName = sdfRowName.format(reportingPeriod);
+                            String countUpdateString = req.getParameter(rowName + "-Updates");
+                            String countQueryString = req.getParameter(rowName + "-Queries");
+                            int countUpdate = 0;
+                            if (countUpdateString != null && !countUpdateString.equals("")) {
+                                countUpdate = Integer.parseInt(countUpdateString);
                             }
-                            session.save(newEntry);
-                            saveCount++;
+                            int countQuery = 0;
+                            if (countQueryString != null && !countQueryString.equals("")) {
+                                countQuery = Integer.parseInt(countQueryString);
+                            }
+
+                            EntryForInterop efi = entryForInteropMap.get(sdfRowName.format(reportingPeriod));
+                            if (efi != null) {
+                                efi.setCountUpdate(countUpdate);
+                                efi.setCountQuery(countQuery);
+                                session.update(efi);
+                                saveCount++;
+                            } else if (countUpdate > 0 || countQuery > 0) {
+                                EntryForInterop newEntry = new EntryForInterop();
+                                newEntry.setCountUpdate(countUpdate);
+                                newEntry.setCountQuery(countQuery);
+                                newEntry.setReportingPeriod(reportingPeriod);
+                                newEntry.setJurisdiction(selectedJurisdiction);
+                                if (sessionUser.getContactId() != null) {
+                                    newEntry.setContactId(sessionUser.getContactId());
+                                }
+                                session.save(newEntry);
+                                saveCount++;
+                            }
+                            tmpCalendar.add(Calendar.MONTH, 1);
                         }
-                        tmpCalendar.add(Calendar.MONTH, 1);
+                        transaction.commit();
+                        message = "Saved " + saveCount + " entries";
+                        view = VIEW_DATA;
                     }
-                    transaction.commit();
-                    message = "Saved " + saveCount + " entries";
-                    view = VIEW_DATA;
                 }
             }
 
@@ -266,55 +300,31 @@ public class ClearServlet extends HttpServlet {
 
             if (view.equals(VIEW_DATA)) {
                 out.println("<h3> " + selectedJurisdiction.getDisplayLabel() + "</h3>");
+                out.println("<p>Access role: " + formatAccessRoleLabel(selectedAccessRole, adminUser) + "</p>");
+                printJurisdictionSelector(out, accessibleJurisdictions, selectedJurisdictionMapLink, view, mode);
                 HashMap<String, EntryForInterop> entryForInteropMap = getEntryForInteropMap(selectedJurisdiction,
                         session);
                 out.println("<p>Found " + entryForInteropMap.size() + " entries already saved.</p>");
 
-                out.println("<div class=\"w3-container\" style=\"width:200px\">");
-                out.println("<form action=\"clear\" method=\"post\">");
-                out.println("   <input type=\"hidden\" name=\"" + PARAM_VIEW + "\" value=\"" + VIEW_DATA + "\">");
-                out.println("   <input type=\"hidden\" name=\"" + PARAM_JURISDICTION + "\" value=\""
-                        + selectedJurisdictionMapLink + "\">");
-                out.println("   <table class=\"w3-table w3-striped\">");
-                out.println("      <tr>");
-                out.println("          <th>Month</th>");
-                out.println("          <th>Updates</th>");
-                out.println("          <th>Queries</th>");
-                out.println("      </tr>");
-                {
-                    Calendar tmpCalendar = Calendar.getInstance();
-                    tmpCalendar.add(Calendar.YEAR, -2);
-                    tmpCalendar.set(Calendar.DAY_OF_MONTH, 1);
-                    for (int i = 0; i < 25; i++) {
-                        SimpleDateFormat sdfRowName = new SimpleDateFormat("MMMMYYYY");
-                        Date reportingPeriod = tmpCalendar.getTime();
-                        String rowName = sdfRowName.format(reportingPeriod);
-                        String countUpdate = "";
-                        String countQuery = "";
-                        EntryForInterop efi = entryForInteropMap.get(sdfRowName.format(reportingPeriod));
-                        if (efi != null) {
-                            countUpdate = "" + efi.getCountUpdate();
-                            countQuery = "" + efi.getCountQuery();
-                        }
-                        out.println("      <tr>");
-                        out.println("           <td>" + sdfMonthYear.format(tmpCalendar.getTime()) + "</td>");
-                        out.println(
-                                "           <td><input class=\"formatted-number\" type=\"text\" name=\"" + rowName
-                                        + "-Updates"
-                                        + "\" value=\"" + countUpdate + "\"></td>");
-                        out.println(
-                                "           <td><input class=\"formatted-number\" type=\"text\" name=\"" + rowName
-                                        + "-Queries"
-                                        + "\" value=\"" + countQuery + "\"></td>");
-                        out.println("      </tr>");
-                        tmpCalendar.add(Calendar.MONTH, 1);
-                    }
+                if (MODE_EDIT.equals(mode)) {
+                    printEditMode(out, selectedJurisdictionMapLink, entryForInteropMap, sdfMonthYear);
+                    out.println("<form action=\"clear\" method=\"get\">");
+                    out.println("   <input type=\"hidden\" name=\"" + PARAM_VIEW + "\" value=\"" + VIEW_DATA + "\">");
+                    out.println("   <input type=\"hidden\" name=\"" + PARAM_JURISDICTION + "\" value=\""
+                            + selectedJurisdictionMapLink + "\">");
+                    out.println("   <input type=\"hidden\" name=\"" + PARAM_MODE + "\" value=\"" + MODE_VIEW + "\">");
+                    out.println("   <input class=\"w3-button w3-light-grey\" type=\"submit\" value=\"View Results\">");
+                    out.println("</form>");
+                } else {
+                    printViewMode(out, entryForInteropMap, sdfMonthYear);
+                    out.println("<form action=\"clear\" method=\"get\">");
+                    out.println("   <input type=\"hidden\" name=\"" + PARAM_VIEW + "\" value=\"" + VIEW_DATA + "\">");
+                    out.println("   <input type=\"hidden\" name=\"" + PARAM_JURISDICTION + "\" value=\""
+                            + selectedJurisdictionMapLink + "\">");
+                    out.println("   <input type=\"hidden\" name=\"" + PARAM_MODE + "\" value=\"" + MODE_EDIT + "\">");
+                    out.println("   <input class=\"w3-button\" type=\"submit\" value=\"Edit Data\">");
+                    out.println("</form>");
                 }
-                out.println("   </table>");
-                out.println("   <input class=\"w3-button\" type=\"submit\" name=\"" + PARAM_ACTION + "\" value=\""
-                        + ACTION_SAVE + "\">");
-                out.println("</form>");
-                out.println("</div>");
 
                 out.println("<script>");
                 out.println("document.addEventListener(\"DOMContentLoaded\", function () {");
@@ -343,7 +353,7 @@ public class ClearServlet extends HttpServlet {
                 int highestDisplayCount = -1;
                 int lowestDisplayCount = -1;
 
-                List<EntryForInterop> allEntries = getEntriesForScope(session, adminUser, selectedJurisdiction);
+                List<EntryForInterop> allEntries = getEntriesForScope(session, adminUser, accessibleJurisdictions);
 
                 for (EntryForInterop efi : allEntries) {
                     if (!sdfMonthYear.format(efi.getReportingPeriod())
@@ -589,15 +599,127 @@ public class ClearServlet extends HttpServlet {
     }
 
     private List<EntryForInterop> getEntriesForScope(Session session, boolean adminUser,
-            Jurisdiction selectedJurisdiction) {
+            List<Jurisdiction> accessibleJurisdictions) {
         if (adminUser) {
             Query<EntryForInterop> query = session.createQuery("FROM EntryForInterop", EntryForInterop.class);
             return query.list();
         }
+        if (accessibleJurisdictions == null || accessibleJurisdictions.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
         Query<EntryForInterop> query = session.createQuery(
-                "FROM EntryForInterop WHERE jurisdiction = :jurisdiction", EntryForInterop.class);
-        query.setParameter("jurisdiction", selectedJurisdiction);
+                "FROM EntryForInterop WHERE jurisdiction in (:jurisdictions)", EntryForInterop.class);
+        query.setParameterList("jurisdictions", accessibleJurisdictions);
         return query.list();
+    }
+
+    private void printJurisdictionSelector(PrintWriter out, List<Jurisdiction> accessibleJurisdictions,
+            String selectedJurisdictionMapLink, String view, String mode) {
+        if (accessibleJurisdictions == null || accessibleJurisdictions.size() < 2) {
+            return;
+        }
+        out.println(
+                "<form action=\"clear\" method=\"get\" class=\"w3-container\" style=\"max-width: 420px; padding-left: 0;\">");
+        out.println("   <input type=\"hidden\" name=\"" + PARAM_VIEW + "\" value=\"" + view + "\">");
+        out.println("   <input type=\"hidden\" name=\"" + PARAM_MODE + "\" value=\"" + mode + "\">");
+        out.println("   <label for=\"jurisdictionSelector\"><strong>Jurisdiction</strong></label>");
+        out.println("   <select id=\"jurisdictionSelector\" class=\"w3-select\" name=\"" + PARAM_JURISDICTION
+                + "\" onchange=\"this.form.submit()\">");
+        for (Jurisdiction jurisdiction : accessibleJurisdictions) {
+            String optionValue = jurisdiction.getMapLink().replace(' ', '-');
+            String selected = optionValue.equals(selectedJurisdictionMapLink) ? " selected" : "";
+            out.println("      <option value=\"" + optionValue + "\"" + selected + ">"
+                    + jurisdiction.getDisplayLabel() + "</option>");
+        }
+        out.println("   </select>");
+        out.println("</form>");
+    }
+
+    private void printEditMode(PrintWriter out, String selectedJurisdictionMapLink,
+            HashMap<String, EntryForInterop> entryForInteropMap, SimpleDateFormat sdfMonthYear) {
+        out.println("<div class=\"w3-container\" style=\"width:200px\">");
+        out.println("<form action=\"clear\" method=\"post\">");
+        out.println("   <input type=\"hidden\" name=\"" + PARAM_VIEW + "\" value=\"" + VIEW_DATA + "\">");
+        out.println("   <input type=\"hidden\" name=\"" + PARAM_JURISDICTION + "\" value=\""
+                + selectedJurisdictionMapLink + "\">");
+        out.println("   <input type=\"hidden\" name=\"" + PARAM_MODE + "\" value=\"" + MODE_EDIT + "\">");
+        out.println("   <table class=\"w3-table w3-striped\">");
+        out.println("      <tr>");
+        out.println("          <th>Month</th>");
+        out.println("          <th>Updates</th>");
+        out.println("          <th>Queries</th>");
+        out.println("      </tr>");
+        Calendar tmpCalendar = Calendar.getInstance();
+        tmpCalendar.add(Calendar.YEAR, -2);
+        tmpCalendar.set(Calendar.DAY_OF_MONTH, 1);
+        for (int i = 0; i < 25; i++) {
+            SimpleDateFormat sdfRowName = new SimpleDateFormat("MMMMYYYY");
+            Date reportingPeriod = tmpCalendar.getTime();
+            String rowName = sdfRowName.format(reportingPeriod);
+            String countUpdate = "";
+            String countQuery = "";
+            EntryForInterop efi = entryForInteropMap.get(sdfRowName.format(reportingPeriod));
+            if (efi != null) {
+                countUpdate = "" + efi.getCountUpdate();
+                countQuery = "" + efi.getCountQuery();
+            }
+            out.println("      <tr>");
+            out.println("           <td>" + sdfMonthYear.format(tmpCalendar.getTime()) + "</td>");
+            out.println("           <td><input class=\"formatted-number\" type=\"text\" name=\"" + rowName
+                    + "-Updates\" value=\"" + countUpdate + "\"></td>");
+            out.println("           <td><input class=\"formatted-number\" type=\"text\" name=\"" + rowName
+                    + "-Queries\" value=\"" + countQuery + "\"></td>");
+            out.println("      </tr>");
+            tmpCalendar.add(Calendar.MONTH, 1);
+        }
+        out.println("   </table>");
+        out.println("   <input class=\"w3-button\" type=\"submit\" name=\"" + PARAM_ACTION + "\" value=\""
+                + ACTION_SAVE + "\">");
+        out.println("</form>");
+        out.println("</div>");
+    }
+
+    private void printViewMode(PrintWriter out, HashMap<String, EntryForInterop> entryForInteropMap,
+            SimpleDateFormat sdfMonthYear) {
+        out.println("<div class=\"w3-container\" style=\"width:200px\">");
+        out.println("   <table class=\"w3-table w3-striped\">");
+        out.println("      <tr>");
+        out.println("          <th>Month</th>");
+        out.println("          <th>Updates</th>");
+        out.println("          <th>Queries</th>");
+        out.println("      </tr>");
+        Calendar tmpCalendar = Calendar.getInstance();
+        tmpCalendar.add(Calendar.YEAR, -2);
+        tmpCalendar.set(Calendar.DAY_OF_MONTH, 1);
+        for (int i = 0; i < 25; i++) {
+            SimpleDateFormat sdfRowName = new SimpleDateFormat("MMMMYYYY");
+            Date reportingPeriod = tmpCalendar.getTime();
+            String countUpdate = "";
+            String countQuery = "";
+            EntryForInterop efi = entryForInteropMap.get(sdfRowName.format(reportingPeriod));
+            if (efi != null) {
+                countUpdate = "" + efi.getCountUpdate();
+                countQuery = "" + efi.getCountQuery();
+            }
+            out.println("      <tr>");
+            out.println("           <td>" + sdfMonthYear.format(reportingPeriod) + "</td>");
+            out.println("           <td class=\"formatted-number\">" + countUpdate + "</td>");
+            out.println("           <td class=\"formatted-number\">" + countQuery + "</td>");
+            out.println("      </tr>");
+            tmpCalendar.add(Calendar.MONTH, 1);
+        }
+        out.println("   </table>");
+        out.println("</div>");
+    }
+
+    private String formatAccessRoleLabel(JurisdictionAccessRole accessRole, boolean adminUser) {
+        if (adminUser) {
+            return "Admin";
+        }
+        if (accessRole == null) {
+            return "Not Authorized";
+        }
+        return accessRole.name().replace('_', ' ').toLowerCase();
     }
 
     private String resetDatabase(Session session) {
