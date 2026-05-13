@@ -27,14 +27,16 @@ public class DashboardEstimateService {
 
     public static class MonthlyEstimateRow {
         private final String monthLabel;
+        private final int reportingCount;
         private final Long conservativeEstimate;
         private final Long centralEstimate;
         private final Long highEstimate;
         private final boolean enoughData;
 
-        public MonthlyEstimateRow(String monthLabel, Long conservativeEstimate, Long centralEstimate,
-                Long highEstimate, boolean enoughData) {
+        public MonthlyEstimateRow(String monthLabel, int reportingCount, Long conservativeEstimate,
+                Long centralEstimate, Long highEstimate, boolean enoughData) {
             this.monthLabel = monthLabel;
+            this.reportingCount = reportingCount;
             this.conservativeEstimate = conservativeEstimate;
             this.centralEstimate = centralEstimate;
             this.highEstimate = highEstimate;
@@ -43,6 +45,10 @@ public class DashboardEstimateService {
 
         public String getMonthLabel() {
             return monthLabel;
+        }
+
+        public int getReportingCount() {
+            return reportingCount;
         }
 
         public Long getConservativeEstimate() {
@@ -150,15 +156,16 @@ public class DashboardEstimateService {
             if (monthData == null) {
                 monthData = Collections.emptyMap();
             }
+            int reportingCount = monthData.size();
 
             MetricEstimate updateEstimate = calculateEstimate(monthData, populationMap, totalNationalPopulation, true);
             MetricEstimate queryEstimate = calculateEstimate(monthData, populationMap, totalNationalPopulation, false);
 
             String monthLabel = month.getMonth().getDisplayName(TextStyle.FULL, Locale.US);
-            updateRows.add(new MonthlyEstimateRow(monthLabel, updateEstimate.getConservativeEstimate(),
+            updateRows.add(new MonthlyEstimateRow(monthLabel, reportingCount, updateEstimate.getConservativeEstimate(),
                     updateEstimate.getCentralEstimate(), updateEstimate.getHighEstimate(),
                     updateEstimate.isEnoughData()));
-            queryRows.add(new MonthlyEstimateRow(monthLabel, queryEstimate.getConservativeEstimate(),
+            queryRows.add(new MonthlyEstimateRow(monthLabel, reportingCount, queryEstimate.getConservativeEstimate(),
                     queryEstimate.getCentralEstimate(), queryEstimate.getHighEstimate(), queryEstimate.isEnoughData()));
         }
 

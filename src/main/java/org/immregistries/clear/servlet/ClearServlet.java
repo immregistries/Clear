@@ -713,6 +713,20 @@ public class ClearServlet extends HttpServlet {
 
         out.println("    <h3 style=\"margin: 20px 0 8px;\">Estimated National Queries</h3>");
         printEstimateTable(out, estimateViewModel.getQueryRows());
+        out.println("    <p class=\"text-muted\" style=\"margin-top: 12px;\">");
+        out.println(
+                "      How estimates are calculated: for each month, CLEAR uses only IIS/state reports received for that month.");
+        out.println(
+                "      For each reporting IIS/state, a rate is calculated as reported count divided by that IIS/state population.");
+        out.println(
+                "      Low Estimate uses the 25th percentile of these rates, Average Estimate uses the population-weighted reporting rate");
+        out.println(
+                "      (total reported count divided by total reporting population), and High Estimate uses the 75th percentile.");
+        out.println(
+                "      Each rate is then scaled to the national population to produce the monthly national estimate.");
+        out.println(
+                "      These values are estimates of national activity based on reporting IIS/state data, not exact totals.");
+        out.println("    </p>");
         out.println("  </div>");
 
         out.println("  <p style=\"margin-top: 3em; padding-top: 2em; border-top: 1px solid #ddd;\">");
@@ -725,19 +739,21 @@ public class ClearServlet extends HttpServlet {
         out.println("    <table class=\"data-table table-striped\">");
         out.println("      <tr>");
         out.println("        <th>Month</th>");
-        out.println("        <th>Conservative Estimate</th>");
-        out.println("        <th>Central Estimate</th>");
+        out.println("        <th>Count</th>");
+        out.println("        <th>Low Estimate</th>");
+        out.println("        <th>Average Estimate</th>");
         out.println("        <th>High Estimate</th>");
         out.println("      </tr>");
 
         if (rows == null || rows.isEmpty()) {
             out.println("      <tr>");
-            out.println("        <td colspan=\"4\" class=\"text-muted\">Not enough data</td>");
+            out.println("        <td colspan=\"5\" class=\"text-muted\">Not enough data</td>");
             out.println("      </tr>");
         } else {
             for (MonthlyEstimateRow row : rows) {
                 out.println("      <tr>");
                 out.println("        <td>" + row.getMonthLabel() + "</td>");
+                out.println("        <td>" + row.getReportingCount() + "</td>");
                 if (row.isEnoughData()) {
                     out.println("        <td>" + formatEstimateNumber(row.getConservativeEstimate()) + "</td>");
                     out.println("        <td>" + formatEstimateNumber(row.getCentralEstimate()) + "</td>");
