@@ -16,7 +16,7 @@
 	<groupId>org.immregistries.clear</groupId>
 	<artifactId>app</artifactId>
 	<packaging>war</packaging>
-	<version>0.1</version>
+	<version>0.2</version>
 	<name>Clear</name>
 	<description>Community Led Exchange and Aggregate Reporting</description>
 

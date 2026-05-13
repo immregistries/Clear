@@ -17,7 +17,6 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import org.immregistries.clear.auth.ClearAuthSessionSupport;
 import org.immregistries.clear.auth.SessionUser;
-import org.immregistries.clear.SoftwareVersion;
 import org.immregistries.clear.model.EntryForInterop;
 import org.immregistries.clear.model.Jurisdiction;
 import org.immregistries.clear.model.JurisdictionAccessRole;
@@ -598,73 +597,15 @@ public class ClearServlet extends HttpServlet {
     }
 
     protected void printHeader(PrintWriter out, String selectedJurisdiction, SessionUser sessionUser) {
-        out.println("<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.01//EN\">");
-        out.println("<html>");
-        out.println("  <head>");
-        out.println("    <title>CLEAR - Community Led Exchange and Aggregate Reporting</title>");
-        out.println("    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
-        out.println("    <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">");
-        out.println("    <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>");
-        out.println(
-                "    <link href=\"https://fonts.googleapis.com/css?family=Open+Sans:400,700|Roboto:400,700\" rel=\"stylesheet\">");
-        out.println("    <link rel=\"stylesheet\" href=\"/clear/css/clear-brand.css\"/>");
-        out.println("  </head>");
-        out.println("  <body class=\"app-body\">");
-
-        out.println("    <header class=\"app-header\">");
-        out.println("      <div class=\"app-header-inner\">");
-        out.println("        <a class=\"app-brand\" href=\"/clear/dashboard?" + PARAM_VIEW + "=" + VIEW_DATA + "&"
-                + PARAM_JURISDICTION + "=" + selectedJurisdiction + "\">");
-        out.println("          <img class=\"app-brand-logo\" src=\"/clear/images/aira_logo.webp\" alt=\"AIRA\">");
-        out.println("          <span>CLEAR</span>");
-        out.println("        </a>");
-        out.println("        <nav class=\"app-nav\">");
-        out.println(
-                "        <a href=\"/clear/dashboard?" + PARAM_VIEW + "=" + VIEW_DATA + "&" + PARAM_JURISDICTION + "="
-                        + selectedJurisdiction + "\" class=\"app-nav-item\">Data</a> ");
-        out.println("        <a href=\"/clear/enter?" + PARAM_JURISDICTION + "=" + selectedJurisdiction
-                + "\" class=\"app-nav-item\">Enter</a> ");
-        out.println("        <a href=\"/clear/dashboard?" + PARAM_VIEW + "=" + VIEW_MAP
-                + "\" class=\"app-nav-item\">Map</a> ");
-        out.println("        <a href=\"/clear/email\" class=\"app-nav-item\">Mail</a> ");
-        if (sessionUser.isAdmin()) {
-            out.println(
-                    "        <a href=\"/clear/admin/jurisdictions\" class=\"app-nav-item\">Jurisdiction Editor</a> ");
-        }
-        out.println("        <a href=\"/clear/admin\" class=\"app-nav-item\">Admin</a> ");
-        out.println("        <a href=\"/clear/logout\" class=\"app-nav-item\">Logout</a> ");
-        out.println("        </nav>");
-        out.println("      </div>");
-        out.println("      <div class=\"app-user-meta\">Signed in as " + escapeHtml(sessionUser.getDisplayName())
-                + " (" + escapeHtml(sessionUser.getEmail()) + ")"
-                + (sessionUser.isAdmin() ? " - Admin" : "") + "</div>");
-        out.println("    </header>");
-        out.println("    <main class=\"app-main\">");
+        PageShellSupport.printAuthenticatedPageStart(
+                out,
+                "CLEAR - Community Led Exchange and Aggregate Reporting",
+                sessionUser,
+                selectedJurisdiction);
     }
 
     protected void printFooter(PrintWriter out) {
-        out.println("   </main>");
-        out.println("  <footer class=\"app-footer\">");
-        out.println("      <p>CLEAR " + SoftwareVersion.VERSION + " - ");
-        out.println(
-                "      <a href=\"https://aira.memberclicks.net/assets/docs/Organizational_Docs/AIRA%20Privacy%20Policy%20-%20Final%202024_.pdf\" class=\"underline\">AIRA Privacy Policy</a> - ");
-        out.println(
-                "      <a href=\"https://aira.memberclicks.net/assets/docs/Organizational_Docs/AIRA%20Terms%20of%20Use%20-%20Final%202024_.pdf\" class=\"underline\">AIRA Terms and Conditions of Use</a></p>");
-        out.println("    </footer>");
-        out.println("  </body>");
-        out.println("</html>");
-    }
-
-    private String escapeHtml(String value) {
-        if (value == null) {
-            return "";
-        }
-        return value
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\"", "&quot;")
-                .replace("'", "&#39;");
+        PageShellSupport.printAuthenticatedPageEnd(out);
     }
 
 }

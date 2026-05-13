@@ -2,6 +2,8 @@ package org.immregistries.clear.servlet;
 
 import org.immregistries.clear.model.EntryForInterop;
 import org.immregistries.clear.model.Jurisdiction;
+import org.immregistries.clear.auth.ClearAuthSessionSupport;
+import org.immregistries.clear.auth.SessionUser;
 import org.immregistries.clear.utils.HibernateUtil;
 import org.hibernate.Session;
 import org.hibernate.query.Query;
@@ -132,31 +134,12 @@ public class ResultsServlet extends HttpServlet {
         Session session = null;
         try {
             session = HibernateUtil.getSessionFactory().openSession();
-            out.println("<!DOCTYPE html>");
-            out.println("<html><head><title>Jurisdiction Results</title>");
-            out.println("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
-            out.println("<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">");
-            out.println("<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>");
-            out.println(
-                    "<link href=\"https://fonts.googleapis.com/css?family=Open+Sans:400,700|Roboto:400,700\" rel=\"stylesheet\">");
-            out.println("<link rel=\"stylesheet\" href=\"/clear/css/clear-brand.css\">");
-            out.println("</head><body class=\"app-body\">");
-            out.println("<header class=\"app-header\">");
-            out.println("  <div class=\"app-header-inner\">");
-            out.println("    <a class=\"app-brand\" href=\"/clear/dashboard?view=data\">");
-            out.println("      <img class=\"app-brand-logo\" src=\"/clear/images/aira_logo.webp\" alt=\"AIRA\">");
-            out.println("      <span>CLEAR</span>");
-            out.println("    </a>");
-            out.println("    <nav class=\"app-nav\">");
-            out.println("      <a class=\"app-nav-item\" href=\"/clear/dashboard?view=data\">Data</a>");
-            out.println("      <a class=\"app-nav-item\" href=\"/clear/enter\">Enter</a>");
-            out.println("      <a class=\"app-nav-item\" href=\"/clear/dashboard?view=map\">Map</a>");
-            out.println("      <a class=\"app-nav-item\" href=\"/clear/email\">Mail</a>");
-            out.println("      <a class=\"app-nav-item\" href=\"/clear/admin\">Admin</a>");
-            out.println("    </nav>");
-            out.println("  </div>");
-            out.println("</header>");
-            out.println("<main class=\"app-main\">");
+            SessionUser sessionUser = ClearAuthSessionSupport.getSessionUser(req);
+            PageShellSupport.printAuthenticatedPageStart(
+                    out,
+                    "Jurisdiction Results",
+                    sessionUser,
+                    null);
             out.println("<h2>Jurisdiction Results</h2>");
 
             // --- Parameter parsing ---
@@ -336,13 +319,7 @@ public class ResultsServlet extends HttpServlet {
             out.println("</table>");
             out.println("</div>");
 
-            out.println("</main>");
-            out.println("<footer class=\"app-footer\">");
-            out.println("  <p>CLEAR " + org.immregistries.clear.SoftwareVersion.VERSION
-                    + " - <a href=\"https://aira.memberclicks.net/assets/docs/Organizational_Docs/AIRA%20Privacy%20Policy%20-%20Final%202024_.pdf\">AIRA Privacy Policy</a> - "
-                    + "<a href=\"https://aira.memberclicks.net/assets/docs/Organizational_Docs/AIRA%20Terms%20of%20Use%20-%20Final%202024_.pdf\">AIRA Terms and Conditions of Use</a></p>");
-            out.println("</footer>");
-            out.println("</body></html>");
+            PageShellSupport.printAuthenticatedPageEnd(out);
         } catch (Exception e) {
             out.println("<h3>Exception</h3>");
             out.println("<p>" + e.getMessage() + "</p>");

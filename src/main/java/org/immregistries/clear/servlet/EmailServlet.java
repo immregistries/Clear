@@ -9,6 +9,8 @@ import java.util.Random;
 
 import org.hibernate.Transaction;
 import org.immregistries.clear.utils.HibernateUtil;
+import org.immregistries.clear.auth.ClearAuthSessionSupport;
+import org.immregistries.clear.auth.SessionUser;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
@@ -18,7 +20,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.hibernate.Session;
 import org.hibernate.query.Query;
 import org.immregistries.clear.ClearConfig;
-import org.immregistries.clear.SoftwareVersion;
 import org.immregistries.clear.model.Jurisdiction;
 import org.immregistries.clear.model.ValidationCode;
 import org.immregistries.clear.service.EmailService;
@@ -42,8 +43,9 @@ public class EmailServlet extends HttpServlet {
 
         PrintWriter out = new PrintWriter(resp.getOutputStream());
         try {
+            SessionUser sessionUser = ClearAuthSessionSupport.getSessionUser(req);
             System.out.println("--> printing header");
-            printHeader(out);
+            printHeader(out, sessionUser);
             out.println("<h1>Send Email</h1>");
 
             String message = req.getParameter("message");
@@ -108,7 +110,7 @@ public class EmailServlet extends HttpServlet {
             String normalizedBaseUrl = clearExternalUrl.endsWith("/")
                     ? clearExternalUrl.substring(0, clearExternalUrl.length() - 1)
                     : clearExternalUrl;
-            String clearUrl = normalizedBaseUrl + "/?view=data&jurisdiction="
+            String clearUrl = normalizedBaseUrl + "/dashboard?view=data&jurisdiction="
                     + formattedJurisdiction + "&access_code=" + vc.getAccessCode();
 
             String body = "enter clear\n" + clearUrl;
@@ -139,50 +141,16 @@ public class EmailServlet extends HttpServlet {
                 .replace("'", "&#39;");
     }
 
-    protected void printHeader(PrintWriter out) {
-        out.println("<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.01//EN\">");
-        out.println("<html>");
-        out.println("  <head>");
-        out.println("    <title>CLEAR - Community Led Exchange and Aggregate Reporting</title>");
-        out.println("    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
-        out.println("    <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">");
-        out.println("    <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>");
-        out.println(
-                "    <link href=\"https://fonts.googleapis.com/css?family=Open+Sans:400,700|Roboto:400,700\" rel=\"stylesheet\">");
-        out.println("    <link rel=\"stylesheet\" href=\"/clear/css/clear-brand.css\"/>");
-        out.println("  </head>");
-        out.println("  <body class=\"app-body\">");
-
-        out.println("    <header class=\"app-header\">");
-        out.println("      <div class=\"app-header-inner\">");
-        out.println("        <a class=\"app-brand\" href=\"/clear/dashboard?" + PARAM_VIEW + "=" + VIEW_DATA + "\">");
-        out.println("          <img class=\"app-brand-logo\" src=\"/clear/images/aira_logo.webp\" alt=\"AIRA\">");
-        out.println("          <span>CLEAR</span>");
-        out.println("        </a>");
-        out.println("        <nav class=\"app-nav\">");
-        out.println("        <a href=\"/clear/dashboard?" + PARAM_VIEW + "=" + VIEW_DATA
-                + "\" class=\"app-nav-item\">Data</a> ");
-        out.println("        <a href=\"/clear/dashboard?" + PARAM_VIEW + "=" + VIEW_MAP
-                + "\" class=\"app-nav-item\">Map</a> ");
-        out.println("        <a href=\"/clear/email\" class=\"app-nav-item\">Mail</a> ");
-        out.println("        <a href=\"/clear/admin\" class=\"app-nav-item\">Admin</a> ");
-        out.println("        </nav>");
-        out.println("      </div>");
-        out.println("    </header>");
-        out.println("    <main class=\"app-main\">");
+    protected void printHeader(PrintWriter out, SessionUser sessionUser) {
+        PageShellSupport.printAuthenticatedPageStart(
+                out,
+                "CLEAR - Community Led Exchange and Aggregate Reporting",
+                sessionUser,
+                null);
     }
 
     protected void printFooter(PrintWriter out) {
-        out.println("  </main>");
-        out.println("  <footer class=\"app-footer\">");
-        out.println("      <p>CLEAR " + SoftwareVersion.VERSION + " - ");
-        out.println(
-                "      <a href=\"https://aira.memberclicks.net/assets/docs/Organizational_Docs/AIRA%20Privacy%20Policy%20-%20Final%202024_.pdf\" class=\"underline\">AIRA Privacy Policy</a> - ");
-        out.println(
-                "      <a href=\"https://aira.memberclicks.net/assets/docs/Organizational_Docs/AIRA%20Terms%20of%20Use%20-%20Final%202024_.pdf\" class=\"underline\">AIRA Terms and Conditions of Use</a></p>");
-        out.println("    </footer>");
-        out.println("  </body>");
-        out.println("</html>");
+        PageShellSupport.printAuthenticatedPageEnd(out);
     }
 
 }
