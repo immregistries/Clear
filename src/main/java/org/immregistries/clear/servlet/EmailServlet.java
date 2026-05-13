@@ -108,18 +108,18 @@ public class EmailServlet extends HttpServlet {
             String normalizedBaseUrl = clearExternalUrl.endsWith("/")
                     ? clearExternalUrl.substring(0, clearExternalUrl.length() - 1)
                     : clearExternalUrl;
-            String clearUrl = normalizedBaseUrl + "/clear?view=data&jurisdiction="
+            String clearUrl = normalizedBaseUrl + "/?view=data&jurisdiction="
                     + formattedJurisdiction + "&access_code=" + vc.getAccessCode();
 
             String body = "enter clear\n" + clearUrl;
             emailService.sendPlainTextEmail(to, "CLEAR", body);
-            resp.sendRedirect(req.getContextPath() + "/clear/email?message="
+            resp.sendRedirect(req.getContextPath() + "/email?message="
                     + URLEncoder.encode("Email sent.", StandardCharsets.UTF_8));
         } catch (RuntimeException e) {
             if (!txCommitted && tx != null) {
                 tx.rollback();
             }
-            resp.sendRedirect(req.getContextPath() + "/clear/email?error=1&message="
+            resp.sendRedirect(req.getContextPath() + "/email?error=1&message="
                     + URLEncoder.encode("Unable to send email. Verify SMTP settings in Admin.",
                             StandardCharsets.UTF_8));
         } finally {
@@ -151,11 +151,11 @@ public class EmailServlet extends HttpServlet {
         out.println("    <header class=\"w3-container w3-green\">");
         out.println("      <div class=\"w3-bar\">");
         out.println("        <h1>CLEAR - Community Led Exchange and Aggregate Reporting</h1> ");
-        out.println("        <a href=\"/clear/clear?" + PARAM_VIEW + "=" + VIEW_DATA
+        out.println("        <a href=\"/clear/?" + PARAM_VIEW + "=" + VIEW_DATA
                 + "\" class=\"w3-bar-item w3-button\">Data</a> ");
-        out.println("        <a href=\"/clear/clear?" + PARAM_VIEW + "=" + VIEW_MAP
+        out.println("        <a href=\"/clear/?" + PARAM_VIEW + "=" + VIEW_MAP
                 + "\" class=\"w3-bar-item w3-button\">Map</a> ");
-        out.println("        <a href=\"\" class=\"w3-bar-item w3-button\">Mail</a> ");
+        out.println("        <a href=\"/clear/email\" class=\"w3-bar-item w3-button\">Mail</a> ");
         out.println("        <a href=\"/clear/admin\" class=\"w3-bar-item w3-button\">Admin</a> ");
         out.println("      </div>");
         out.println("    </header>");

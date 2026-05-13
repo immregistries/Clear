@@ -308,7 +308,7 @@ public class ClearServlet extends HttpServlet {
 
                 if (MODE_EDIT.equals(mode)) {
                     printEditMode(out, selectedJurisdictionMapLink, entryForInteropMap, sdfMonthYear);
-                    out.println("<form action=\"clear\" method=\"get\">");
+                    out.println("<form action=\"/clear/\" method=\"get\">");
                     out.println("   <input type=\"hidden\" name=\"" + PARAM_VIEW + "\" value=\"" + VIEW_DATA + "\">");
                     out.println("   <input type=\"hidden\" name=\"" + PARAM_JURISDICTION + "\" value=\""
                             + selectedJurisdictionMapLink + "\">");
@@ -317,7 +317,7 @@ public class ClearServlet extends HttpServlet {
                     out.println("</form>");
                 } else {
                     printViewMode(out, entryForInteropMap, sdfMonthYear);
-                    out.println("<form action=\"clear\" method=\"get\">");
+                    out.println("<form action=\"/clear/\" method=\"get\">");
                     out.println("   <input type=\"hidden\" name=\"" + PARAM_VIEW + "\" value=\"" + VIEW_DATA + "\">");
                     out.println("   <input type=\"hidden\" name=\"" + PARAM_JURISDICTION + "\" value=\""
                             + selectedJurisdictionMapLink + "\">");
@@ -420,7 +420,7 @@ public class ClearServlet extends HttpServlet {
 
                 out.println("<div class=\"w3-container\" style=\"width:40%\">");
                 out.println("<div class=\"w3-container\">");
-                out.println("   <form method=\"GET\" action=\"/clear/clear\">");
+                out.println("   <form method=\"GET\" action=\"/clear/\">");
                 out.println("      <input type=\"hidden\" name=\"" + PARAM_VIEW + "\" value=\"" + view + "\">");
                 out.println("      <input type=\"hidden\" name=\"" + PARAM_MONTH + "\" value=\""
                         + sdfMonthYear.format(month.getTime()) + "\">");
@@ -442,7 +442,7 @@ public class ClearServlet extends HttpServlet {
                 String futureMonthString = sdfMonthYear.format(futureMonth.getTime());
 
                 out.println("<div class=\"w3-container\">");
-                out.println("<form method=\"GET\" action=\"/clear/clear\">");
+                out.println("<form method=\"GET\" action=\"/clear/\">");
                 out.println("   <input type=\"hidden\" name=\"" + PARAM_VIEW + "\" value=\"" + view + "\">");
                 out.println(
                         "   <input type=\"hidden\" name=\"" + PARAM_DISPLAY_TYPE + "\" value=\"" + displayType + "\">");
@@ -619,7 +619,7 @@ public class ClearServlet extends HttpServlet {
             return;
         }
         out.println(
-                "<form action=\"clear\" method=\"get\" class=\"w3-container\" style=\"max-width: 420px; padding-left: 0;\">");
+                "<form action=\"/clear/\" method=\"get\" class=\"w3-container\" style=\"max-width: 420px; padding-left: 0;\">");
         out.println("   <input type=\"hidden\" name=\"" + PARAM_VIEW + "\" value=\"" + view + "\">");
         out.println("   <input type=\"hidden\" name=\"" + PARAM_MODE + "\" value=\"" + mode + "\">");
         out.println("   <label for=\"jurisdictionSelector\"><strong>Jurisdiction</strong></label>");
@@ -638,7 +638,7 @@ public class ClearServlet extends HttpServlet {
     private void printEditMode(PrintWriter out, String selectedJurisdictionMapLink,
             HashMap<String, EntryForInterop> entryForInteropMap, SimpleDateFormat sdfMonthYear) {
         out.println("<div class=\"w3-container\" style=\"width:200px\">");
-        out.println("<form action=\"clear\" method=\"post\">");
+        out.println("<form action=\"/clear/\" method=\"post\">");
         out.println("   <input type=\"hidden\" name=\"" + PARAM_VIEW + "\" value=\"" + VIEW_DATA + "\">");
         out.println("   <input type=\"hidden\" name=\"" + PARAM_JURISDICTION + "\" value=\""
                 + selectedJurisdictionMapLink + "\">");
@@ -759,13 +759,17 @@ public class ClearServlet extends HttpServlet {
         out.println("    <header class=\"w3-container w3-green\">");
         out.println("      <div class=\"w3-bar\">");
         out.println("        <h1>CLEAR - Community Led Exchange and Aggregate Reporting</h1> ");
-        out.println("        <a href=\"clear?" + PARAM_VIEW + "=" + VIEW_DATA + "&" + PARAM_JURISDICTION + "="
+        out.println("        <a href=\"/clear/?" + PARAM_VIEW + "=" + VIEW_DATA + "&" + PARAM_JURISDICTION + "="
                 + selectedJurisdiction + "\" class=\"w3-bar-item w3-button\">Data</a> ");
-        out.println("        <a href=\"clear?" + PARAM_VIEW + "=" + VIEW_MAP
+        out.println("        <a href=\"/clear/?" + PARAM_VIEW + "=" + VIEW_MAP
                 + "\" class=\"w3-bar-item w3-button\">Map</a> ");
-        out.println("        <a href=\"clear/email\" class=\"w3-bar-item w3-button\">Mail</a> ");
-        out.println("        <a href=\"clear/admin\" class=\"w3-bar-item w3-button\">Admin</a> ");
-        out.println("        <a href=\"logout\" class=\"w3-bar-item w3-button\">Logout</a> ");
+        out.println("        <a href=\"/clear/email\" class=\"w3-bar-item w3-button\">Mail</a> ");
+        if (sessionUser.isAdmin()) {
+            out.println(
+                    "        <a href=\"/clear/admin/jurisdictions\" class=\"w3-bar-item w3-button\">Jurisdiction Editor</a> ");
+        }
+        out.println("        <a href=\"/clear/admin\" class=\"w3-bar-item w3-button\">Admin</a> ");
+        out.println("        <a href=\"/clear/logout\" class=\"w3-bar-item w3-button\">Logout</a> ");
         out.println("      </div>");
         out.println("      <div class=\"w3-small\">Signed in as " + sessionUser.getDisplayName()
                 + " (" + sessionUser.getEmail() + ")"

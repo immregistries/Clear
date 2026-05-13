@@ -35,6 +35,6 @@ public class LoginServlet extends HttpServlet {
             return;
         }
 
-        resp.sendRedirect(req.getContextPath() + "/clear");
+        resp.sendRedirect(req.getContextPath() + "/");
     }
 }
