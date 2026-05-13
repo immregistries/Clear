@@ -60,6 +60,10 @@ public class AdminServlet extends HttpServlet {
     private static final String ACTION_VIEW_CONTACT_ADMIN = "contactAdmin";
     private static final String ACTION_SAVE_JURISDICTIONS = "saveJurisdictions";
     private static final String ACTION_BULK_UPDATE_JURISDICTIONS = "bulkUpdateJurisdictions";
+    private static final String ACTION_SAVE_JURISDICTION_DETAILS = "saveJurisdictionDetails";
+    private static final String ACTION_SET_JURISDICTION_ROLE = "setJurisdictionRole";
+    private static final String ACTION_SET_JURISDICTION_PRIMARY_REPORTER = "setJurisdictionPrimaryReporter";
+    private static final String ACTION_REMOVE_JURISDICTION_ROLE = "removeJurisdictionRole";
     private static final String ACTION_ADD_CONTACT = "addContact";
     private static final String ACTION_SAVE_CONTACT = "saveContact";
     private static final String ACTION_UPLOAD_CONTACTS = "uploadContacts";
@@ -81,6 +85,11 @@ public class AdminServlet extends HttpServlet {
     private static final String PARAM_CONTACT_ACCESS_JURISDICTION_ID = "contactAccessJurisdictionId";
     private static final String PARAM_CONTACT_ACCESS_ROLE = "contactAccessRole";
     private static final String PARAM_JURISDICTION_ID = "jurisdictionId";
+    private static final String PARAM_TARGET_JURISDICTION_ID = "targetJurisdictionId";
+    private static final String PARAM_TARGET_CONTACT_ID = "targetContactId";
+    private static final String PARAM_TARGET_ROLE = "targetRole";
+    private static final String PARAM_LOCAL_CONTACT_SEARCH = "localContactSearch";
+    private static final String PARAM_GLOBAL_CONTACT_SEARCH = "globalContactSearch";
     private static final String PARAM_JURISDICTION_DISPLAY_LABEL = "jurisdictionDisplayLabel";
     private static final String PARAM_JURISDICTION_MAP_LINK = "jurisdictionMapLink";
     private static final String PARAM_BULK_JURISDICTION_TEXT = "bulkJurisdictionText";
@@ -196,6 +205,13 @@ public class AdminServlet extends HttpServlet {
             renderJurisdictionPage(resp, sessionUser, null, false, null, "");
             return;
         }
+        if ("/jurisdictions/edit".equals(pathInfo)) {
+            Integer jurisdictionId = parseInteger(req.getParameter(PARAM_JURISDICTION_ID));
+            renderJurisdictionEditPage(resp, sessionUser, jurisdictionId, null, false,
+                    normalize(req.getParameter(PARAM_LOCAL_CONTACT_SEARCH)),
+                    normalize(req.getParameter(PARAM_GLOBAL_CONTACT_SEARCH)));
+            return;
+        }
         if ("/contacts".equals(pathInfo)) {
             renderContactAdminPage(req, resp, sessionUser, null, false);
             return;
@@ -249,6 +265,22 @@ public class AdminServlet extends HttpServlet {
         }
         if (ACTION_BULK_UPDATE_JURISDICTIONS.equals(action)) {
             handleBulkJurisdictionUpdates(req, resp, sessionUser);
+            return;
+        }
+        if (ACTION_SAVE_JURISDICTION_DETAILS.equals(action)) {
+            handleSaveJurisdictionDetails(req, resp, sessionUser);
+            return;
+        }
+        if (ACTION_SET_JURISDICTION_ROLE.equals(action)) {
+            handleSetJurisdictionRole(req, resp, sessionUser);
+            return;
+        }
+        if (ACTION_SET_JURISDICTION_PRIMARY_REPORTER.equals(action)) {
+            handleSetJurisdictionPrimaryReporter(req, resp, sessionUser);
+            return;
+        }
+        if (ACTION_REMOVE_JURISDICTION_ROLE.equals(action)) {
+            handleRemoveJurisdictionRole(req, resp, sessionUser);
             return;
         }
         if (ACTION_ADD_CONTACT.equals(action)) {
@@ -1062,6 +1094,183 @@ public class AdminServlet extends HttpServlet {
         }
     }
 
+    private void handleSaveJurisdictionDetails(HttpServletRequest req, HttpServletResponse resp,
+            SessionUser sessionUser) throws IOException {
+        Integer jurisdictionId = parseInteger(req.getParameter(PARAM_TARGET_JURISDICTION_ID));
+        String localSearch = normalize(req.getParameter(PARAM_LOCAL_CONTACT_SEARCH));
+        String globalSearch = normalize(req.getParameter(PARAM_GLOBAL_CONTACT_SEARCH));
+        Session session = HibernateUtil.getSessionFactory().openSession();
+        Transaction tx = null;
+        try {
+            Integer requiredJurisdictionId = parseRequiredInteger(req.getParameter(PARAM_TARGET_JURISDICTION_ID),
+                    "Jurisdiction");
+            String displayLabel = normalize(req.getParameter(PARAM_JURISDICTION_DISPLAY_LABEL));
+            String mapLink = normalize(req.getParameter(PARAM_JURISDICTION_MAP_LINK));
+            if (displayLabel == null) {
+                throw new IllegalArgumentException("Display label is required.");
+            }
+            if (mapLink == null) {
+                throw new IllegalArgumentException("Map link is required.");
+            }
+
+            tx = session.beginTransaction();
+            Jurisdiction jurisdiction = session.get(Jurisdiction.class, requiredJurisdictionId);
+            if (jurisdiction == null) {
+                throw new IllegalArgumentException("Selected jurisdiction was not found.");
+            }
+            jurisdiction.setDisplayLabel(displayLabel);
+            jurisdiction.setMapLink(mapLink);
+            session.saveOrUpdate(jurisdiction);
+            tx.commit();
+
+            renderJurisdictionEditPage(resp, sessionUser, Integer.valueOf(requiredJurisdictionId),
+                    "Jurisdiction details saved.", false, localSearch, globalSearch);
+        } catch (Exception e) {
+            if (tx != null) {
+                tx.rollback();
+            }
+            renderJurisdictionEditPage(resp, sessionUser, jurisdictionId,
+                    "Unable to save jurisdiction details: " + e.getMessage(), true, localSearch, globalSearch);
+        } finally {
+            session.close();
+        }
+    }
+
+    private void handleSetJurisdictionRole(HttpServletRequest req, HttpServletResponse resp,
+            SessionUser sessionUser) throws IOException {
+        Integer jurisdictionId = parseInteger(req.getParameter(PARAM_TARGET_JURISDICTION_ID));
+        String localSearch = normalize(req.getParameter(PARAM_LOCAL_CONTACT_SEARCH));
+        String globalSearch = normalize(req.getParameter(PARAM_GLOBAL_CONTACT_SEARCH));
+        Session session = HibernateUtil.getSessionFactory().openSession();
+        Transaction tx = null;
+        try {
+            Integer requiredJurisdictionId = parseRequiredInteger(req.getParameter(PARAM_TARGET_JURISDICTION_ID),
+                    "Jurisdiction");
+            Integer contactId = parseRequiredInteger(req.getParameter(PARAM_TARGET_CONTACT_ID), "Contact");
+            JurisdictionAccessRole accessRole = parseAccessRole(req.getParameter(PARAM_TARGET_ROLE));
+
+            Contact contact = session.get(Contact.class, contactId);
+            if (contact == null) {
+                throw new IllegalArgumentException("Selected contact was not found.");
+            }
+            Jurisdiction jurisdiction = session.get(Jurisdiction.class, requiredJurisdictionId);
+            if (jurisdiction == null) {
+                throw new IllegalArgumentException("Selected jurisdiction was not found.");
+            }
+
+            tx = session.beginTransaction();
+            upsertJurisdictionAccessRole(session, contact, jurisdiction.getJurisdictionId(), accessRole, sessionUser);
+            tx.commit();
+
+            renderJurisdictionEditPage(resp, sessionUser, Integer.valueOf(requiredJurisdictionId),
+                    "Role updated for " + formatContactLabel(contact) + ".", false, localSearch, globalSearch);
+        } catch (Exception e) {
+            if (tx != null) {
+                tx.rollback();
+            }
+            renderJurisdictionEditPage(resp, sessionUser, jurisdictionId,
+                    "Unable to update role: " + e.getMessage(), true, localSearch, globalSearch);
+        } finally {
+            session.close();
+        }
+    }
+
+    private void handleSetJurisdictionPrimaryReporter(HttpServletRequest req, HttpServletResponse resp,
+            SessionUser sessionUser) throws IOException {
+        Integer jurisdictionId = parseInteger(req.getParameter(PARAM_TARGET_JURISDICTION_ID));
+        String localSearch = normalize(req.getParameter(PARAM_LOCAL_CONTACT_SEARCH));
+        String globalSearch = normalize(req.getParameter(PARAM_GLOBAL_CONTACT_SEARCH));
+        Session session = HibernateUtil.getSessionFactory().openSession();
+        Transaction tx = null;
+        try {
+            Integer requiredJurisdictionId = parseRequiredInteger(req.getParameter(PARAM_TARGET_JURISDICTION_ID),
+                    "Jurisdiction");
+            Integer contactId = parseRequiredInteger(req.getParameter(PARAM_TARGET_CONTACT_ID), "Contact");
+
+            Contact selectedContact = session.get(Contact.class, contactId);
+            if (selectedContact == null) {
+                throw new IllegalArgumentException("Selected contact was not found.");
+            }
+            Jurisdiction jurisdiction = session.get(Jurisdiction.class, requiredJurisdictionId);
+            if (jurisdiction == null) {
+                throw new IllegalArgumentException("Selected jurisdiction was not found.");
+            }
+
+            tx = session.beginTransaction();
+            Query<ContactJurisdictionAccess> primaryQuery = session.createQuery(
+                    "FROM ContactJurisdictionAccess WHERE jurisdictionId = :jurisdictionId AND accessRole = :accessRole",
+                    ContactJurisdictionAccess.class);
+            primaryQuery.setParameter("jurisdictionId", Integer.valueOf(requiredJurisdictionId.intValue()));
+            primaryQuery.setParameter("accessRole", JurisdictionAccessRole.PRIMARY_REPORTER);
+            for (ContactJurisdictionAccess existingPrimary : primaryQuery.list()) {
+                if (existingPrimary.getContactId() == contactId.intValue()) {
+                    continue;
+                }
+                Contact existingContact = session.get(Contact.class, Integer.valueOf(existingPrimary.getContactId()));
+                if (existingContact != null
+                        && existingContact.getJurisdictionId() == requiredJurisdictionId.intValue()) {
+                    session.remove(existingPrimary);
+                } else {
+                    existingPrimary.setAccessRole(JurisdictionAccessRole.VIEWER);
+                    existingPrimary.setDateUpdated(new Date());
+                    existingPrimary.setUpdatedByContactId(sessionUser.getContactId());
+                    session.saveOrUpdate(existingPrimary);
+                }
+            }
+
+            upsertJurisdictionAccessRole(session, selectedContact, requiredJurisdictionId.intValue(),
+                    JurisdictionAccessRole.PRIMARY_REPORTER, sessionUser);
+            tx.commit();
+
+            renderJurisdictionEditPage(resp, sessionUser, Integer.valueOf(requiredJurisdictionId.intValue()),
+                    "Primary reporter updated to " + formatContactLabel(selectedContact) + ".", false,
+                    localSearch, globalSearch);
+        } catch (Exception e) {
+            if (tx != null) {
+                tx.rollback();
+            }
+            renderJurisdictionEditPage(resp, sessionUser, jurisdictionId,
+                    "Unable to set primary reporter: " + e.getMessage(), true, localSearch, globalSearch);
+        } finally {
+            session.close();
+        }
+    }
+
+    private void handleRemoveJurisdictionRole(HttpServletRequest req, HttpServletResponse resp,
+            SessionUser sessionUser) throws IOException {
+        Integer jurisdictionId = parseInteger(req.getParameter(PARAM_TARGET_JURISDICTION_ID));
+        String localSearch = normalize(req.getParameter(PARAM_LOCAL_CONTACT_SEARCH));
+        String globalSearch = normalize(req.getParameter(PARAM_GLOBAL_CONTACT_SEARCH));
+        Session session = HibernateUtil.getSessionFactory().openSession();
+        Transaction tx = null;
+        try {
+            Integer requiredJurisdictionId = parseRequiredInteger(req.getParameter(PARAM_TARGET_JURISDICTION_ID),
+                    "Jurisdiction");
+            Integer contactId = parseRequiredInteger(req.getParameter(PARAM_TARGET_CONTACT_ID), "Contact");
+
+            Contact contact = session.get(Contact.class, contactId);
+            if (contact == null) {
+                throw new IllegalArgumentException("Selected contact was not found.");
+            }
+
+            tx = session.beginTransaction();
+            removeJurisdictionAccessRole(session, contactId.intValue(), requiredJurisdictionId.intValue());
+            tx.commit();
+
+            renderJurisdictionEditPage(resp, sessionUser, Integer.valueOf(requiredJurisdictionId.intValue()),
+                    "Removed explicit role for " + formatContactLabel(contact) + ".", false,
+                    localSearch, globalSearch);
+        } catch (Exception e) {
+            if (tx != null) {
+                tx.rollback();
+            }
+            renderJurisdictionEditPage(resp, sessionUser, jurisdictionId,
+                    "Unable to remove role: " + e.getMessage(), true, localSearch, globalSearch);
+        } finally {
+            session.close();
+        }
+    }
+
     private void handleAddContact(HttpServletRequest req, HttpServletResponse resp,
             SessionUser sessionUser) throws IOException {
         String searchText = normalize(req.getParameter(PARAM_CONTACT_SEARCH));
@@ -1648,8 +1857,10 @@ public class AdminServlet extends HttpServlet {
         PrintWriter out = new PrintWriter(resp.getOutputStream());
         Session session = HibernateUtil.getSessionFactory().openSession();
         try {
-            List<JurisdictionEditRow> rows = jurisdictionRows == null ? loadJurisdictionEditRows(session)
+            List<JurisdictionEditRow> rows = jurisdictionRows == null
+                    ? loadJurisdictionEditRows(session)
                     : jurisdictionRows;
+            Map<Integer, Contact> primaryReporterByJurisdiction = loadPrimaryReporterByJurisdiction(session);
             printHeader(out, sessionUser);
             out.println("<h2>Jurisdictions</h2>");
             out.println("<p><a class=\"w3-button w3-light-grey\" href=\"/clear/admin\">Back to Admin</a></p>");
@@ -1658,34 +1869,27 @@ public class AdminServlet extends HttpServlet {
                 out.println("<div class=\"w3-panel " + panelClass + "\">" + escapeHtml(message) + "</div>");
             }
 
-            out.println("<h3>Edit Jurisdictions</h3>");
-            out.println("<p>Edit display labels and map links directly in the table below.</p>");
-            out.println("<form method=\"POST\" class=\"w3-container\">");
-            out.println("  <input type=\"hidden\" name=\"" + PARAM_ACTION + "\" value=\""
-                    + ACTION_SAVE_JURISDICTIONS + "\">");
-            out.println("  <table class=\"w3-table w3-bordered w3-striped\">");
-            out.println("    <tr><th>Display Label</th><th>Map Link</th><th>ID</th></tr>");
+            out.println("<h3>Jurisdiction List</h3>");
+            out.println("<p>Select Edit to update display settings and contact access roles.</p>");
+            out.println("<table class=\"w3-table w3-bordered w3-striped\">");
+            out.println(
+                    "  <tr><th>Display Label</th><th>Map Link</th><th>Primary Reporter</th><th>ID</th><th>Action</th></tr>");
             for (JurisdictionEditRow row : rows) {
+                Contact primaryReporter = primaryReporterByJurisdiction.get(Integer.valueOf(row.getJurisdictionId()));
+                String editHref = "/clear/admin/jurisdictions/edit?" + PARAM_JURISDICTION_ID + "="
+                        + row.getJurisdictionId();
                 out.println("    <tr>");
-                out.println("      <td>");
-                out.println("        <input class=\"w3-input\" type=\"text\" name=\""
-                        + PARAM_JURISDICTION_DISPLAY_LABEL + "\" value=\""
-                        + escapeHtml(safe(row.getDisplayLabel())) + "\">");
-                out.println("      </td>");
-                out.println("      <td>");
-                out.println("        <input class=\"w3-input\" type=\"text\" name=\""
-                        + PARAM_JURISDICTION_MAP_LINK + "\" value=\""
-                        + escapeHtml(safe(row.getMapLink())) + "\">");
-                out.println("      </td>");
-                out.println("      <td>");
-                out.println("        <input type=\"hidden\" name=\"" + PARAM_JURISDICTION_ID + "\" value=\""
-                        + row.getJurisdictionId() + "\">" + row.getJurisdictionId());
-                out.println("      </td>");
+                out.println("      <td>" + escapeHtml(safe(row.getDisplayLabel())) + "</td>");
+                out.println("      <td>" + escapeHtml(safe(row.getMapLink())) + "</td>");
+                out.println("      <td><a href=\"" + editHref + "\">"
+                        + escapeHtml(primaryReporter == null ? "Unassigned" : formatContactLabel(primaryReporter))
+                        + "</a></td>");
+                out.println("      <td>" + row.getJurisdictionId() + "</td>");
+                out.println("      <td><a class=\"w3-button w3-small w3-teal\" href=\"" + editHref
+                        + "\">Edit</a></td>");
                 out.println("    </tr>");
             }
-            out.println("  </table>");
-            out.println("  <p><button class=\"w3-button w3-green\" type=\"submit\">Save Jurisdictions</button></p>");
-            out.println("</form>");
+            out.println("</table>");
 
             out.println("<hr>");
             out.println("<h3>Bulk Display Label Update</h3>");
@@ -1702,6 +1906,215 @@ public class AdminServlet extends HttpServlet {
                     + escapeHtml(safe(bulkText)) + "</textarea></p>");
             out.println("  <p><button class=\"w3-button w3-blue\" type=\"submit\">Apply Bulk Update</button></p>");
             out.println("</form>");
+
+            printFooter(out);
+        } finally {
+            session.close();
+            out.close();
+        }
+    }
+
+    private void renderJurisdictionEditPage(HttpServletResponse resp, SessionUser sessionUser,
+            Integer jurisdictionId, String message, boolean error, String localSearch, String globalSearch)
+            throws IOException {
+        resp.setContentType("text/html");
+        PrintWriter out = new PrintWriter(resp.getOutputStream());
+        Session session = HibernateUtil.getSessionFactory().openSession();
+        try {
+            Jurisdiction jurisdiction = jurisdictionId == null ? null : session.get(Jurisdiction.class, jurisdictionId);
+
+            printHeader(out, sessionUser);
+            out.println("<h2>Edit Jurisdiction</h2>");
+            out.println(
+                    "<p><a class=\"w3-button w3-light-grey\" href=\"/clear/admin/jurisdictions\">Back to Jurisdictions</a></p>");
+            if (message != null && !message.isEmpty()) {
+                String panelClass = error ? "w3-pale-red" : "w3-pale-green";
+                out.println("<div class=\"w3-panel " + panelClass + "\">" + escapeHtml(message) + "</div>");
+            }
+            if (jurisdiction == null) {
+                out.println("<div class=\"w3-panel w3-pale-red\">Jurisdiction not found.</div>");
+                printFooter(out);
+                return;
+            }
+
+            List<ContactJurisdictionAccess> overrides = loadAccessByJurisdiction(session,
+                    jurisdiction.getJurisdictionId());
+            Map<Integer, ContactJurisdictionAccess> overrideByContactId = new HashMap<Integer, ContactJurisdictionAccess>();
+            for (ContactJurisdictionAccess override : overrides) {
+                overrideByContactId.put(Integer.valueOf(override.getContactId()), override);
+            }
+
+            Map<Integer, Contact> contactById = loadContactById(session);
+            List<Contact> localContacts = loadContactsByJurisdiction(session, jurisdiction.getJurisdictionId(),
+                    localSearch);
+            List<Contact> globalContacts = loadContactsOutsideJurisdiction(session, jurisdiction.getJurisdictionId(),
+                    globalSearch);
+            Contact primaryReporter = null;
+            for (ContactJurisdictionAccess override : overrides) {
+                if (override.getAccessRole() == JurisdictionAccessRole.PRIMARY_REPORTER) {
+                    primaryReporter = contactById.get(Integer.valueOf(override.getContactId()));
+                    break;
+                }
+            }
+
+            out.println("<h3>Jurisdiction Details</h3>");
+            out.println("<form method=\"POST\" class=\"w3-container\" style=\"max-width: 720px; padding-left: 0;\">");
+            out.println("  <input type=\"hidden\" name=\"" + PARAM_ACTION + "\" value=\""
+                    + ACTION_SAVE_JURISDICTION_DETAILS + "\">");
+            out.println("  <input type=\"hidden\" name=\"" + PARAM_TARGET_JURISDICTION_ID + "\" value=\""
+                    + jurisdiction.getJurisdictionId() + "\">");
+            out.println("  <input type=\"hidden\" name=\"" + PARAM_LOCAL_CONTACT_SEARCH + "\" value=\""
+                    + escapeHtml(safe(localSearch)) + "\">");
+            out.println("  <input type=\"hidden\" name=\"" + PARAM_GLOBAL_CONTACT_SEARCH + "\" value=\""
+                    + escapeHtml(safe(globalSearch)) + "\">");
+            out.println("  <p><label>Display Label</label><input class=\"w3-input\" type=\"text\" name=\""
+                    + PARAM_JURISDICTION_DISPLAY_LABEL + "\" value=\""
+                    + escapeHtml(safe(jurisdiction.getDisplayLabel())) + "\"></p>");
+            out.println("  <p><label>Map Link</label><input class=\"w3-input\" type=\"text\" name=\""
+                    + PARAM_JURISDICTION_MAP_LINK + "\" value=\""
+                    + escapeHtml(safe(jurisdiction.getMapLink())) + "\"></p>");
+            out.println("  <p><button class=\"w3-button w3-green\" type=\"submit\">Save Jurisdiction</button></p>");
+            out.println("</form>");
+
+            out.println("<hr>");
+            out.println("<h3>Primary Reporter</h3>");
+            out.println("<p>Current: <strong>"
+                    + escapeHtml(primaryReporter == null ? "Unassigned" : formatContactLabel(primaryReporter))
+                    + "</strong></p>");
+            if (primaryReporter != null) {
+                out.println("<form method=\"POST\" style=\"margin-bottom: 16px;\">");
+                out.println("  <input type=\"hidden\" name=\"" + PARAM_ACTION + "\" value=\""
+                        + ACTION_REMOVE_JURISDICTION_ROLE + "\">");
+                out.println("  <input type=\"hidden\" name=\"" + PARAM_TARGET_JURISDICTION_ID + "\" value=\""
+                        + jurisdiction.getJurisdictionId() + "\">");
+                out.println("  <input type=\"hidden\" name=\"" + PARAM_TARGET_CONTACT_ID + "\" value=\""
+                        + primaryReporter.getContactId() + "\">");
+                out.println("  <input type=\"hidden\" name=\"" + PARAM_LOCAL_CONTACT_SEARCH + "\" value=\""
+                        + escapeHtml(safe(localSearch)) + "\">");
+                out.println("  <input type=\"hidden\" name=\"" + PARAM_GLOBAL_CONTACT_SEARCH + "\" value=\""
+                        + escapeHtml(safe(globalSearch)) + "\">");
+                out.println(
+                        "  <button class=\"w3-button w3-small w3-red\" type=\"submit\">Remove Primary Reporter</button>");
+                out.println("</form>");
+            }
+
+            out.println("<h4>Find Contact In This Jurisdiction</h4>");
+            out.println(
+                    "<form method=\"GET\" class=\"w3-container\" style=\"max-width: 720px; padding-left: 0;\" action=\"/clear/admin/jurisdictions/edit\">");
+            out.println("  <input type=\"hidden\" name=\"" + PARAM_JURISDICTION_ID + "\" value=\""
+                    + jurisdiction.getJurisdictionId() + "\">");
+            out.println("  <p><input class=\"w3-input\" type=\"text\" name=\"" + PARAM_LOCAL_CONTACT_SEARCH
+                    + "\" value=\"" + escapeHtml(safe(localSearch))
+                    + "\" placeholder=\"Type part of first name, last name, or email\"></p>");
+            out.println("  <p><button class=\"w3-button w3-blue\" type=\"submit\">Search Local Contacts</button></p>");
+            out.println("</form>");
+
+            out.println("<table class=\"w3-table w3-bordered w3-striped\">");
+            out.println(
+                    "  <tr><th>Contact</th><th>Role</th><th>Primary</th><th>Secondary</th><th>Not Authorized</th><th>Viewer</th><th>Remove Override</th></tr>");
+            for (Contact contact : localContacts) {
+                ContactJurisdictionAccess override = overrideByContactId.get(Integer.valueOf(contact.getContactId()));
+                JurisdictionAccessRole effectiveRole = override == null
+                        ? JurisdictionAccessRole.VIEWER
+                        : override.getAccessRole();
+                out.println("  <tr>");
+                out.println("    <td>" + escapeHtml(formatContactLabel(contact)) + "</td>");
+                out.println("    <td>" + escapeHtml(formatRoleLabel(effectiveRole))
+                        + (override == null ? " (implicit)" : " (explicit)") + "</td>");
+                out.println("    <td>" + buildRoleActionForm(jurisdiction.getJurisdictionId(), contact.getContactId(),
+                        ACTION_SET_JURISDICTION_PRIMARY_REPORTER, null, "Set Primary", localSearch, globalSearch)
+                        + "</td>");
+                out.println("    <td>" + buildRoleActionForm(jurisdiction.getJurisdictionId(), contact.getContactId(),
+                        ACTION_SET_JURISDICTION_ROLE, JurisdictionAccessRole.SECONDARY_REPORTER, "Set Secondary",
+                        localSearch, globalSearch) + "</td>");
+                out.println("    <td>" + buildRoleActionForm(jurisdiction.getJurisdictionId(), contact.getContactId(),
+                        ACTION_SET_JURISDICTION_ROLE, JurisdictionAccessRole.NOT_AUTHORIZED, "Set Not Authorized",
+                        localSearch, globalSearch) + "</td>");
+                out.println("    <td>" + buildRoleActionForm(jurisdiction.getJurisdictionId(), contact.getContactId(),
+                        ACTION_SET_JURISDICTION_ROLE, JurisdictionAccessRole.VIEWER, "Set Viewer", localSearch,
+                        globalSearch) + "</td>");
+                out.println("    <td>" + buildRoleActionForm(jurisdiction.getJurisdictionId(), contact.getContactId(),
+                        ACTION_REMOVE_JURISDICTION_ROLE, null, "Remove", localSearch, globalSearch) + "</td>");
+                out.println("  </tr>");
+            }
+            out.println("</table>");
+
+            out.println("<details style=\"margin-top: 24px;\">");
+            out.println("  <summary><strong>Search all contacts (outside jurisdiction)</strong></summary>");
+            out.println("  <p>Use this only when a reporter should come from another jurisdiction.</p>");
+            out.println(
+                    "  <form method=\"GET\" class=\"w3-container\" style=\"max-width: 720px; padding-left: 0;\" action=\"/clear/admin/jurisdictions/edit\">");
+            out.println("    <input type=\"hidden\" name=\"" + PARAM_JURISDICTION_ID + "\" value=\""
+                    + jurisdiction.getJurisdictionId() + "\">");
+            out.println("    <input type=\"hidden\" name=\"" + PARAM_LOCAL_CONTACT_SEARCH + "\" value=\""
+                    + escapeHtml(safe(localSearch)) + "\">");
+            out.println("    <p><input class=\"w3-input\" type=\"text\" name=\"" + PARAM_GLOBAL_CONTACT_SEARCH
+                    + "\" value=\"" + escapeHtml(safe(globalSearch))
+                    + "\" placeholder=\"Type part of name or email\"></p>");
+            out.println("    <p><button class=\"w3-button w3-blue\" type=\"submit\">Search All Contacts</button></p>");
+            out.println("  </form>");
+
+            if (globalSearch != null) {
+                out.println("  <table class=\"w3-table w3-bordered w3-striped\">");
+                out.println(
+                        "    <tr><th>Contact</th><th>Home Jurisdiction</th><th>Primary</th><th>Secondary</th><th>Not Authorized</th><th>Viewer</th></tr>");
+                Map<Integer, Jurisdiction> jurisdictionById = loadJurisdictionById(session);
+                for (Contact contact : globalContacts) {
+                    Jurisdiction homeJurisdiction = jurisdictionById.get(Integer.valueOf(contact.getJurisdictionId()));
+                    out.println("    <tr>");
+                    out.println("      <td>" + escapeHtml(formatContactLabel(contact)) + "</td>");
+                    out.println("      <td>"
+                            + escapeHtml(homeJurisdiction == null ? "Unknown" : homeJurisdiction.getDisplayLabel())
+                            + "</td>");
+                    out.println(
+                            "      <td>" + buildRoleActionForm(jurisdiction.getJurisdictionId(), contact.getContactId(),
+                                    ACTION_SET_JURISDICTION_PRIMARY_REPORTER, null, "Set Primary", localSearch,
+                                    globalSearch) + "</td>");
+                    out.println(
+                            "      <td>" + buildRoleActionForm(jurisdiction.getJurisdictionId(), contact.getContactId(),
+                                    ACTION_SET_JURISDICTION_ROLE, JurisdictionAccessRole.SECONDARY_REPORTER,
+                                    "Set Secondary", localSearch, globalSearch) + "</td>");
+                    out.println(
+                            "      <td>" + buildRoleActionForm(jurisdiction.getJurisdictionId(), contact.getContactId(),
+                                    ACTION_SET_JURISDICTION_ROLE, JurisdictionAccessRole.NOT_AUTHORIZED,
+                                    "Set Not Authorized", localSearch, globalSearch) + "</td>");
+                    out.println("      <td>" + buildRoleActionForm(jurisdiction.getJurisdictionId(),
+                            contact.getContactId(),
+                            ACTION_SET_JURISDICTION_ROLE, JurisdictionAccessRole.VIEWER, "Set Viewer", localSearch,
+                            globalSearch) + "</td>");
+                    out.println("    </tr>");
+                }
+                out.println("  </table>");
+            }
+            out.println("</details>");
+
+            out.println("<hr>");
+            out.println("<h3>Explicit Overrides For This Jurisdiction</h3>");
+            out.println("<table class=\"w3-table w3-bordered w3-striped\">");
+            out.println(
+                    "  <tr><th>Contact</th><th>Home Jurisdiction</th><th>Role</th><th>Updated</th><th>Action</th></tr>");
+            SimpleDateFormat accessDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm");
+            Map<Integer, Jurisdiction> jurisdictionById = loadJurisdictionById(session);
+            for (ContactJurisdictionAccess override : overrides) {
+                Contact contact = contactById.get(Integer.valueOf(override.getContactId()));
+                Jurisdiction homeJurisdiction = contact == null
+                        ? null
+                        : jurisdictionById.get(Integer.valueOf(contact.getJurisdictionId()));
+                out.println("  <tr>");
+                out.println("    <td>" + escapeHtml(contact == null
+                        ? "Unknown contact #" + override.getContactId()
+                        : formatContactLabel(contact)) + "</td>");
+                out.println("    <td>" + escapeHtml(homeJurisdiction == null ? "" : homeJurisdiction.getDisplayLabel())
+                        + "</td>");
+                out.println("    <td>" + escapeHtml(formatRoleLabel(override.getAccessRole())) + "</td>");
+                out.println("    <td>" + escapeHtml(override.getDateUpdated() == null
+                        ? ""
+                        : accessDateFormat.format(override.getDateUpdated())) + "</td>");
+                out.println("    <td>" + buildRoleActionForm(jurisdiction.getJurisdictionId(), override.getContactId(),
+                        ACTION_REMOVE_JURISDICTION_ROLE, null, "Remove", localSearch, globalSearch) + "</td>");
+                out.println("  </tr>");
+            }
+            out.println("</table>");
 
             printFooter(out);
         } finally {
@@ -1742,6 +2155,146 @@ public class AdminServlet extends HttpServlet {
                     jurisdiction.getDisplayLabel(), jurisdiction.getMapLink()));
         }
         return rows;
+    }
+
+    private Map<Integer, Contact> loadPrimaryReporterByJurisdiction(Session session) {
+        Map<Integer, Contact> primaryReporterByJurisdiction = new HashMap<Integer, Contact>();
+        Map<Integer, Contact> contactById = loadContactById(session);
+        Query<ContactJurisdictionAccess> query = session.createQuery(
+                "FROM ContactJurisdictionAccess WHERE accessRole = :accessRole ORDER BY jurisdictionId, dateUpdated DESC",
+                ContactJurisdictionAccess.class);
+        query.setParameter("accessRole", JurisdictionAccessRole.PRIMARY_REPORTER);
+        for (ContactJurisdictionAccess access : query.list()) {
+            Integer jurisdictionId = Integer.valueOf(access.getJurisdictionId());
+            if (!primaryReporterByJurisdiction.containsKey(jurisdictionId)) {
+                primaryReporterByJurisdiction.put(jurisdictionId,
+                        contactById.get(Integer.valueOf(access.getContactId())));
+            }
+        }
+        return primaryReporterByJurisdiction;
+    }
+
+    private List<ContactJurisdictionAccess> loadAccessByJurisdiction(Session session, int jurisdictionId) {
+        Query<ContactJurisdictionAccess> query = session.createQuery(
+                "FROM ContactJurisdictionAccess WHERE jurisdictionId = :jurisdictionId ORDER BY accessRole, contactId",
+                ContactJurisdictionAccess.class);
+        query.setParameter("jurisdictionId", Integer.valueOf(jurisdictionId));
+        return query.list();
+    }
+
+    private List<Contact> loadContactsByJurisdiction(Session session, int jurisdictionId, String searchText) {
+        StringBuilder hql = new StringBuilder(
+                "FROM Contact WHERE jurisdictionId = :jurisdictionId");
+        boolean hasSearch = searchText != null;
+        if (hasSearch) {
+            hql.append(
+                    " AND (lower(nameFirst) LIKE :search OR lower(nameLast) LIKE :search OR lower(emailAddress) LIKE :search)");
+        }
+        hql.append(" ORDER BY nameLast, nameFirst, emailAddress");
+        Query<Contact> query = session.createQuery(hql.toString(), Contact.class);
+        query.setParameter("jurisdictionId", Integer.valueOf(jurisdictionId));
+        if (hasSearch) {
+            query.setParameter("search", "%" + searchText.toLowerCase(Locale.ROOT) + "%");
+        }
+        query.setMaxResults(200);
+        return query.list();
+    }
+
+    private List<Contact> loadContactsOutsideJurisdiction(Session session, int jurisdictionId, String searchText) {
+        if (searchText == null) {
+            return new ArrayList<Contact>();
+        }
+        Query<Contact> query = session.createQuery(
+                "FROM Contact WHERE jurisdictionId <> :jurisdictionId "
+                        + "AND (lower(nameFirst) LIKE :search OR lower(nameLast) LIKE :search OR lower(emailAddress) LIKE :search) "
+                        + "ORDER BY nameLast, nameFirst, emailAddress",
+                Contact.class);
+        query.setParameter("jurisdictionId", Integer.valueOf(jurisdictionId));
+        query.setParameter("search", "%" + searchText.toLowerCase(Locale.ROOT) + "%");
+        query.setMaxResults(30);
+        return query.list();
+    }
+
+    private Map<Integer, Contact> loadContactById(Session session) {
+        Map<Integer, Contact> contactById = new HashMap<Integer, Contact>();
+        for (Contact contact : loadContacts(session)) {
+            contactById.put(Integer.valueOf(contact.getContactId()), contact);
+        }
+        return contactById;
+    }
+
+    private void upsertJurisdictionAccessRole(Session session, Contact contact, int jurisdictionId,
+            JurisdictionAccessRole accessRole, SessionUser sessionUser) {
+        ContactJurisdictionAccess existing = findExistingAccessOverride(session, null,
+                Integer.valueOf(contact.getContactId()), Integer.valueOf(jurisdictionId));
+        if (accessRole == JurisdictionAccessRole.VIEWER && contact.getJurisdictionId() == jurisdictionId) {
+            if (existing != null) {
+                session.remove(existing);
+            }
+            return;
+        }
+
+        if (existing == null) {
+            existing = new ContactJurisdictionAccess();
+            existing.setContactId(contact.getContactId());
+            existing.setJurisdictionId(jurisdictionId);
+            existing.setDateCreated(new Date());
+        }
+        existing.setAccessRole(accessRole);
+        existing.setDateUpdated(new Date());
+        existing.setUpdatedByContactId(sessionUser.getContactId());
+        session.saveOrUpdate(existing);
+    }
+
+    private void removeJurisdictionAccessRole(Session session, int contactId, int jurisdictionId) {
+        ContactJurisdictionAccess existing = findExistingAccessOverride(session, null,
+                Integer.valueOf(contactId), Integer.valueOf(jurisdictionId));
+        if (existing != null) {
+            session.remove(existing);
+        }
+    }
+
+    private String buildRoleActionForm(int jurisdictionId, int contactId, String action,
+            JurisdictionAccessRole role, String buttonLabel, String localSearch, String globalSearch) {
+        StringBuilder html = new StringBuilder();
+        html.append("<form method=\"POST\" style=\"margin:0\">");
+        html.append("<input type=\"hidden\" name=\"")
+                .append(PARAM_ACTION)
+                .append("\" value=\"")
+                .append(action)
+                .append("\">");
+        html.append("<input type=\"hidden\" name=\"")
+                .append(PARAM_TARGET_JURISDICTION_ID)
+                .append("\" value=\"")
+                .append(jurisdictionId)
+                .append("\">");
+        html.append("<input type=\"hidden\" name=\"")
+                .append(PARAM_TARGET_CONTACT_ID)
+                .append("\" value=\"")
+                .append(contactId)
+                .append("\">");
+        if (role != null) {
+            html.append("<input type=\"hidden\" name=\"")
+                    .append(PARAM_TARGET_ROLE)
+                    .append("\" value=\"")
+                    .append(role.name())
+                    .append("\">");
+        }
+        html.append("<input type=\"hidden\" name=\"")
+                .append(PARAM_LOCAL_CONTACT_SEARCH)
+                .append("\" value=\"")
+                .append(escapeHtml(safe(localSearch)))
+                .append("\">");
+        html.append("<input type=\"hidden\" name=\"")
+                .append(PARAM_GLOBAL_CONTACT_SEARCH)
+                .append("\" value=\"")
+                .append(escapeHtml(safe(globalSearch)))
+                .append("\">");
+        html.append("<button class=\"w3-button w3-tiny w3-blue\" type=\"submit\">")
+                .append(escapeHtml(buttonLabel))
+                .append("</button>");
+        html.append("</form>");
+        return html.toString();
     }
 
     private String joinErrors(String prefix, String error) {
