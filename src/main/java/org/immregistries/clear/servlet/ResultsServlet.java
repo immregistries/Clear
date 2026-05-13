@@ -20,6 +20,10 @@ import java.util.*;
 
 @WebServlet(name = "ResultsServlet", urlPatterns = { "/results" })
 public class ResultsServlet extends HttpServlet {
+    private static String formatInteger(int value) {
+        return String.format(Locale.US, "%,d", value);
+    }
+
     // Helper for ranking
     private static void rankAndRenderTable(List<RankedRow> allRows, Comparator<RankedRow> cmp,
             String selectedJurisdiction, PrintWriter out, String tableType) {
@@ -79,8 +83,8 @@ public class ResultsServlet extends HttpServlet {
             }
             if (i > 0 && tie) {
                 skip++;
-            } else {
-                rank += skip;
+            } else if (i > 0) {
+                rank += skip + 1;
                 skip = 0;
             }
             // Highlight selected jurisdiction
@@ -92,22 +96,25 @@ public class ResultsServlet extends HttpServlet {
             out.print("<td>" + boldStart + row.jurisdiction.getDisplayLabel() + boldEnd + "</td>");
             switch (tableType) {
                 case "updates":
-                    out.print("<td>" + row.updates + "</td>");
+                    out.print("<td>" + formatInteger(row.updates) + "</td>");
                     break;
                 case "queries":
-                    out.print("<td>" + row.queries + "</td>");
+                    out.print("<td>" + formatInteger(row.queries) + "</td>");
                     break;
                 case "updatesPerCapita":
-                    out.print("<td>" + row.population + "</td><td>" + row.updates + "</td><td>"
+                    out.print("<td>" + formatInteger(row.population) + "</td><td>" + formatInteger(row.updates)
+                            + "</td><td>"
                             + String.format("%.2f", row.updatesPerCapita) + "</td>");
                     break;
                 case "queriesPerCapita":
-                    out.print("<td>" + row.population + "</td><td>" + row.queries + "</td><td>"
+                    out.print("<td>" + formatInteger(row.population) + "</td><td>" + formatInteger(row.queries)
+                            + "</td><td>"
                             + String.format("%.2f", row.queriesPerCapita) + "</td>");
                     break;
                 case "queryUpdateRatio":
-                    out.print("<td>" + row.updates + "</td><td>" + row.queries + "</td><td>"
-                            + String.format("%.2f", row.queryUpdateRatio) + "</td>");
+                    out.print(
+                            "<td>" + formatInteger(row.updates) + "</td><td>" + formatInteger(row.queries) + "</td><td>"
+                                    + String.format("%.2f", row.queryUpdateRatio) + "</td>");
                     break;
             }
             out.println("</tr>");

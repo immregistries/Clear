@@ -21,11 +21,6 @@
     </servlet>
 
     <servlet>
-        <servlet-name>email</servlet-name>
-        <servlet-class>org.immregistries.clear.servlet.EmailServlet</servlet-class>
-    </servlet>
-
-    <servlet>
         <servlet-name>admin</servlet-name>
         <servlet-class>org.immregistries.clear.servlet.AdminServlet</servlet-class>
     </servlet>
@@ -50,11 +45,6 @@
         <filter-class>org.immregistries.clear.auth.ClearAuthenticationFilter</filter-class>
     </filter>
     
-    <servlet-mapping>
-        <servlet-name>email</servlet-name>
-        <url-pattern>/email</url-pattern>
-    </servlet-mapping>	 
-
     <servlet-mapping>
         <servlet-name>admin</servlet-name>
         <url-pattern>/admin/*</url-pattern>

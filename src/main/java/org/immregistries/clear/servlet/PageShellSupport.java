@@ -74,27 +74,18 @@ public final class PageShellSupport {
             SessionUser sessionUser, String selectedJurisdiction) {
         List<NavItem> navItems = new ArrayList<NavItem>();
 
-        String dataHref = "/clear/dashboard?view=data";
+        String homeHref = "/clear/dashboard?view=home";
         String enterHref = "/clear/enter";
         if (selectedJurisdiction != null && !selectedJurisdiction.isEmpty()) {
-            dataHref += "&jurisdiction=" + selectedJurisdiction;
             enterHref += "?jurisdiction=" + selectedJurisdiction;
         }
 
-        navItems.add(nav(dataHref, "Data"));
-        navItems.add(nav(enterHref, "Enter"));
+        navItems.add(nav(enterHref, "Enter Data"));
         navItems.add(nav("/clear/dashboard?view=map", "Map"));
-        navItems.add(nav("/clear/email", "Mail"));
+        navItems.add(nav("/clear/results", "Results"));
         navItems.add(nav("/clear/admin", "Admin"));
 
-        if (sessionUser != null && sessionUser.isAdmin()) {
-            navItems.add(nav("/clear/admin/jurisdictions", "Jurisdictions"));
-            navItems.add(nav("/clear/admin/contacts", "Contacts"));
-        }
-
-        navItems.add(nav("/clear/logout", "Logout"));
-
-        printPageStart(out, title, dataHref, sessionUser, navItems);
+        printPageStart(out, title, homeHref, sessionUser, navItems);
     }
 
     public static void printAuthenticatedPageEnd(PrintWriter out) {

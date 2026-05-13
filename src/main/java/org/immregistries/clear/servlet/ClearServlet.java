@@ -36,6 +36,7 @@ public class ClearServlet extends HttpServlet {
     public static final String PARAM_VIEW = "view";
     public static final String VIEW_MAP = "map";
     public static final String VIEW_DATA = "data";
+    public static final String VIEW_HOME = "home";
 
     public static final String PARAM_ACTION = "action";
     public static final String ACTION_SAVE = "Save";
@@ -127,7 +128,7 @@ public class ClearServlet extends HttpServlet {
         SimpleDateFormat sdfMonthYear = new SimpleDateFormat("MMMM yyyy");
         resp.setContentType("text/html");
 
-        String view = VIEW_DATA;
+        String view = VIEW_HOME;
         if (req.getParameter(PARAM_VIEW) != null) {
             view = req.getParameter(PARAM_VIEW);
         }
@@ -139,14 +140,22 @@ public class ClearServlet extends HttpServlet {
             selectedJurisdictionMapLink = req.getParameter(PARAM_JURISDICTION).replace('-', ' ');
         }
 
-        Calendar month = Calendar.getInstance();
+        Calendar latestCompleteMonth = Calendar.getInstance();
+        latestCompleteMonth.set(Calendar.DAY_OF_MONTH, 1);
+        latestCompleteMonth.add(Calendar.MONTH, -1);
+
+        Calendar month = (Calendar) latestCompleteMonth.clone();
         String monthParam = req.getParameter(PARAM_MONTH);
-        if (monthParam != null && monthParam != "") {
+        if (monthParam != null && !monthParam.isEmpty()) {
             try {
                 month.setTime(sdfMonthYear.parse(monthParam));
+                month.set(Calendar.DAY_OF_MONTH, 1);
             } catch (ParseException e) {
                 e.printStackTrace();
             }
+        }
+        if (month.after(latestCompleteMonth)) {
+            month = (Calendar) latestCompleteMonth.clone();
         }
 
         String displayType = req.getParameter(PARAM_DISPLAY_TYPE);
@@ -203,6 +212,13 @@ public class ClearServlet extends HttpServlet {
                     selectedAccessRole = jurisdictionAccessService.getEffectiveAccessRole(session, sessionUser,
                             selectedJurisdiction.getJurisdictionId());
                 }
+            }
+
+            if (view.equals(VIEW_HOME)) {
+                printHomeHeader(out, sessionUser);
+                renderHomeView(out);
+                printFooter(out);
+                return;
             }
 
             if (selectedJurisdiction == null) {
@@ -276,6 +292,10 @@ public class ClearServlet extends HttpServlet {
                     MapEntityMaker mapEntityMaker = new MapEntityMaker();
 
                     for (EntryForInterop efi : allEntries) {
+                        if (!sdfMonthYear.format(efi.getReportingPeriod())
+                                .equals(sdfMonthYear.format(month.getTime()))) {
+                            continue;
+                        }
                         Jurisdiction jurisdiction = efi.getJurisdiction();
 
                         int displayCount = efi.getCountUpdate();
@@ -349,8 +369,14 @@ public class ClearServlet extends HttpServlet {
                 out.println("          <p>" + sdfMonthYear.format(month.getTime()) + "</p>");
                 out.println("      </div>");
                 out.println("      <div class=\"app-col\">");
-                out.println("          <input class=\"btn\" type=\"submit\" name=\"" + PARAM_MONTH + "\" value=\""
-                        + futureMonthString + "\" onclick=\"this.form.submit()\">");
+                if (futureMonth.after(latestCompleteMonth.getTime())) {
+                    out.println("          <button class=\"btn\" type=\"button\" disabled>" + futureMonthString
+                            + "</button>");
+                } else {
+                    out.println(
+                            "          <input class=\"btn\" type=\"submit\" name=\"" + PARAM_MONTH + "\" value=\""
+                                    + futureMonthString + "\" onclick=\"this.form.submit()\">");
+                }
                 out.println("      </div>");
                 out.println("   </div>");
                 out.println("</form>");
@@ -379,7 +405,14 @@ public class ClearServlet extends HttpServlet {
                 out.println("      </tr>");
                 for (EntryForInterop efi : allEntries) {
                     Jurisdiction jurisdiction = efi.getJurisdiction();
-                    int population = populationMap.get(jurisdiction.getDisplayLabel());
+                    Integer populationValue = populationMap.get(jurisdiction.getDisplayLabel());
+                    if (populationValue == null) {
+                        populationValue = populationMap.get(jurisdiction.getMapLink());
+                    }
+                    if (populationValue == null) {
+                        continue;
+                    }
+                    int population = populationValue;
                     if (sdfMonthYear.format(efi.getReportingPeriod()).equals(sdfMonthYear.format(month.getTime()))) {
                         numEntries += 1;
                         popTotal += population;
@@ -419,15 +452,15 @@ public class ClearServlet extends HttpServlet {
                 out.println("          <th>Total Updates/Queries </th>");
                 out.println("      </tr>");
                 out.println("      <tr>");
-                float uToPopAverage = uToPopTotal / numEntries;
-                float qToPopAverage = qToPopTotal / numEntries;
-                float uToQAverage = uToQTotal / numEntries;
+                float uToPopAverage = numEntries > 0 ? uToPopTotal / numEntries : 0;
+                float qToPopAverage = numEntries > 0 ? qToPopTotal / numEntries : 0;
+                float uToQAverage = numEntries > 0 ? uToQTotal / numEntries : 0;
                 out.println("           <td style=\"width:50%\">" + String.format("%.2f", uToPopAverage) + "</td>");
                 out.println("           <td style=\"width:50%\">" + String.format("%.2f", qToPopAverage) + "</td>");
                 out.println("           <td style=\"width:50%\">" + String.format("%.2f", uToQAverage) + "</td>");
-                float totalUToPop = ((float) updatesTotal / numEntries) / ((float) popTotal / numEntries);
-                float totalQToPop = ((float) queriesTotal / numEntries) / ((float) popTotal / numEntries);
-                float totalUToQ = ((float) updatesTotal / numEntries) / ((float) queriesTotal / numEntries);
+                float totalUToPop = popTotal > 0 ? (float) updatesTotal / popTotal : 0;
+                float totalQToPop = popTotal > 0 ? (float) queriesTotal / popTotal : 0;
+                float totalUToQ = queriesTotal > 0 ? (float) updatesTotal / queriesTotal : 0;
                 out.println("           <td style=\"width:50%\">" + String.format("%.2f", totalUToPop) + "</td>");
                 out.println("           <td style=\"width:50%\">" + String.format("%.2f", totalQToPop) + "</td>");
                 out.println("           <td style=\"width:50%\">" + String.format("%.2f", totalUToQ) + "</td>");
@@ -604,8 +637,47 @@ public class ClearServlet extends HttpServlet {
                 selectedJurisdiction);
     }
 
+    protected void printHomeHeader(PrintWriter out, SessionUser sessionUser) {
+        PageShellSupport.printAuthenticatedPageStart(
+                out,
+                "CLEAR - Community Led Exchange and Aggregate Reporting",
+                sessionUser,
+                null);
+    }
+
     protected void printFooter(PrintWriter out) {
         PageShellSupport.printAuthenticatedPageEnd(out);
+    }
+
+    private void renderHomeView(PrintWriter out) {
+        out.println("<div class=\"app-section\" style=\"max-width: 800px; line-height: 1.6; color: #333;\">");
+        out.println(
+                "  <h1 style=\"font-size: 2em; margin-bottom: 0.5em; color: #2c5aa0;\">Community Led Exchange and Aggregate Reporting (CLEAR)</h1>");
+        out.println("");
+        out.println("  <p style=\"margin-bottom: 1em;\">");
+        out.println(
+                "    CLEAR helps us understand how immunization information systems (IIS) support real-time HL7 interoperability across the nation.");
+        out.println(
+                "    We're asking IIS to share the volume of HL7 v2 updates and queries they're processing each month.");
+        out.println("  </p>");
+        out.println("");
+        out.println("  <p style=\"margin-bottom: 1em;\">");
+        out.println(
+                "    Your data is valuable and will be shared with other IIS participants. You'll be able to see what others are reporting.");
+        out.println(
+                "    Externally, we'll publish only an aggregate national estimate to help communicate the vital services IIS are providing");
+        out.println("    and demonstrate that interoperability is working nationwide.");
+        out.println("  </p>");
+        out.println("");
+        out.println("  <p style=\"margin-bottom: 2em;\">");
+        out.println(
+                "    Together, we're building a picture of the real-world impact of standardized data exchange in immunization systems.");
+        out.println("  </p>");
+        out.println("");
+        out.println("  <p style=\"margin-top: 3em; padding-top: 2em; border-top: 1px solid #ddd;\">");
+        out.println("    <a href=\"/clear/logout\" style=\"color: #2c5aa0; text-decoration: none;\">Sign out</a>");
+        out.println("  </p>");
+        out.println("</div>");
     }
 
 }
