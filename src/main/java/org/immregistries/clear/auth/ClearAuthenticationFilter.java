@@ -54,6 +54,8 @@ public class ClearAuthenticationFilter implements Filter {
         return "/login".equals(path)
                 || "/logout".equals(path)
                 || "/access-denied".equals(path)
-                || "/favicon.ico".equals(path);
+                || "/favicon.ico".equals(path)
+                || path.startsWith("/css/")
+                || path.startsWith("/images/");
     }
 }

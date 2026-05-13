@@ -220,17 +220,17 @@ public class EntryServlet extends ClearServlet {
             Session session) {
         printHeader(out, selectedJurisdictionMapLink, sessionUser);
         if (message != null) {
-            out.println("<p class=\"" + (error ? "w3-text-red" : "w3-text-green") + "\">" + message + "</p>");
+            out.println("<p class=\"" + (error ? "text-error" : "text-success") + "\">" + message + "</p>");
         }
 
         out.println("<h3>" + selectedJurisdiction.getDisplayLabel() + "</h3>");
         printJurisdictionSelector(out, accessibleJurisdictions, selectedJurisdictionMapLink, selectedYear);
 
-        out.println("<div class=\"w3-container\" style=\"margin-bottom:16px;padding-left:0;\">");
+        out.println("<div class=\"app-section\" style=\"margin-bottom:16px;padding-left:0;\">");
         out.println("<form method=\"get\" action=\"/clear/enter\" style=\"display:inline;\">");
         out.println("  <input type=\"hidden\" name=\"" + PARAM_JURISDICTION + "\" value=\""
                 + selectedJurisdictionMapLink + "\">");
-        out.println("  <button class=\"w3-button\" type=\"submit\" name=\"" + PARAM_YEAR + "\" value=\""
+        out.println("  <button class=\"btn\" type=\"submit\" name=\"" + PARAM_YEAR + "\" value=\""
                 + (selectedYear - 1) + "\">&larr; " + (selectedYear - 1) + "</button>");
         out.println("</form>");
         out.println("<span style=\"margin:0 16px;font-weight:bold;\">" + selectedYear + "</span>");
@@ -238,7 +238,7 @@ public class EntryServlet extends ClearServlet {
             out.println("<form method=\"get\" action=\"/clear/enter\" style=\"display:inline;\">");
             out.println("  <input type=\"hidden\" name=\"" + PARAM_JURISDICTION + "\" value=\""
                     + selectedJurisdictionMapLink + "\">");
-            out.println("  <button class=\"w3-button\" type=\"submit\" name=\"" + PARAM_YEAR + "\" value=\""
+            out.println("  <button class=\"btn\" type=\"submit\" name=\"" + PARAM_YEAR + "\" value=\""
                     + (selectedYear + 1) + "\">" + (selectedYear + 1) + " &rarr;</button>");
             out.println("</form>");
         }
@@ -250,12 +250,12 @@ public class EntryServlet extends ClearServlet {
         Calendar now = Calendar.getInstance();
         int currentMonth = now.get(Calendar.MONTH);
 
-        out.println("<div class=\"w3-container\" style=\"max-width:560px;padding-left:0;\">");
+        out.println("<div class=\"app-section\" style=\"max-width:560px;padding-left:0;\">");
         out.println("<form action=\"/clear/enter\" method=\"post\">");
         out.println("  <input type=\"hidden\" name=\"" + PARAM_JURISDICTION + "\" value=\""
                 + selectedJurisdictionMapLink + "\">");
         out.println("  <input type=\"hidden\" name=\"" + PARAM_YEAR + "\" value=\"" + selectedYear + "\">");
-        out.println("  <table class=\"w3-table w3-striped\">");
+        out.println("  <table class=\"data-table table-striped\">");
         out.println("    <tr><th>Month</th><th>Updates</th><th>Queries</th></tr>");
 
         for (int monthIndex = 0; monthIndex < 12; monthIndex++) {
@@ -278,7 +278,7 @@ public class EntryServlet extends ClearServlet {
             }
 
             boolean disableInputs = isCurrentOrFutureMonth(selectedYear, monthIndex, currentYear, currentMonth);
-            String rowClass = disableInputs ? " class=\"w3-light-grey\"" : "";
+            String rowClass = disableInputs ? " class=\"row-disabled\"" : "";
             String disabledAttribute = disableInputs ? " disabled" : "";
             out.println("    <tr" + rowClass + ">");
             out.println("      <td>" + monthLabel + "</td>");
@@ -292,7 +292,7 @@ public class EntryServlet extends ClearServlet {
         }
 
         out.println("  </table>");
-        out.println("  <input class=\"w3-button w3-green\" type=\"submit\" name=\"" + PARAM_ACTION
+        out.println("  <input class=\"btn btn-primary\" type=\"submit\" name=\"" + PARAM_ACTION
                 + "\" value=\"" + ACTION_SAVE + "\">");
         out.println("</form>");
         out.println("</div>");
@@ -331,10 +331,10 @@ public class EntryServlet extends ClearServlet {
             return;
         }
         out.println(
-                "<form action=\"/clear/enter\" method=\"get\" class=\"w3-container\" style=\"max-width: 420px; padding-left: 0;\">");
+                "<form action=\"/clear/enter\" method=\"get\" class=\"app-section\" style=\"max-width: 420px; padding-left: 0;\">");
         out.println("   <input type=\"hidden\" name=\"" + PARAM_YEAR + "\" value=\"" + selectedYear + "\">");
         out.println("   <label for=\"jurisdictionSelector\"><strong>Jurisdiction</strong></label>");
-        out.println("   <select id=\"jurisdictionSelector\" class=\"w3-select\" name=\"" + PARAM_JURISDICTION
+        out.println("   <select id=\"jurisdictionSelector\" class=\"form-select\" name=\"" + PARAM_JURISDICTION
                 + "\" onchange=\"this.form.submit()\">");
         for (Jurisdiction jurisdiction : accessibleJurisdictions) {
             String optionValue = jurisdiction.getMapLink().replace(' ', '-');

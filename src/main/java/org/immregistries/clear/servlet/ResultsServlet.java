@@ -82,7 +82,7 @@ public class ResultsServlet extends HttpServlet {
                 skip = 0;
             }
             // Highlight selected jurisdiction
-            String highlight = row.jurisdiction.getMapLink().equals(selectedJurisdiction) ? "w3-green" : "";
+            String highlight = row.jurisdiction.getMapLink().equals(selectedJurisdiction) ? "table-highlight" : "";
             String boldStart = highlight.isEmpty() ? "" : "<b>";
             String boldEnd = highlight.isEmpty() ? "" : "</b>";
             out.print("<tr class='" + highlight + "'>");
@@ -132,10 +132,32 @@ public class ResultsServlet extends HttpServlet {
         Session session = null;
         try {
             session = HibernateUtil.getSessionFactory().openSession();
+            out.println("<!DOCTYPE html>");
             out.println("<html><head><title>Jurisdiction Results</title>");
-            out.println("<link rel=\"stylesheet\" href=\"https://www.w3schools.com/w3css/4/w3.css\">");
-            out.println("</head><body>");
-            out.println("<header class=\"w3-container w3-green\"><h2>Jurisdiction Results</h2></header>");
+            out.println("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+            out.println("<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">");
+            out.println("<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>");
+            out.println(
+                    "<link href=\"https://fonts.googleapis.com/css?family=Open+Sans:400,700|Roboto:400,700\" rel=\"stylesheet\">");
+            out.println("<link rel=\"stylesheet\" href=\"/clear/css/clear-brand.css\">");
+            out.println("</head><body class=\"app-body\">");
+            out.println("<header class=\"app-header\">");
+            out.println("  <div class=\"app-header-inner\">");
+            out.println("    <a class=\"app-brand\" href=\"/clear/dashboard?view=data\">");
+            out.println("      <img class=\"app-brand-logo\" src=\"/clear/images/aira_logo.webp\" alt=\"AIRA\">");
+            out.println("      <span>CLEAR</span>");
+            out.println("    </a>");
+            out.println("    <nav class=\"app-nav\">");
+            out.println("      <a class=\"app-nav-item\" href=\"/clear/dashboard?view=data\">Data</a>");
+            out.println("      <a class=\"app-nav-item\" href=\"/clear/enter\">Enter</a>");
+            out.println("      <a class=\"app-nav-item\" href=\"/clear/dashboard?view=map\">Map</a>");
+            out.println("      <a class=\"app-nav-item\" href=\"/clear/email\">Mail</a>");
+            out.println("      <a class=\"app-nav-item\" href=\"/clear/admin\">Admin</a>");
+            out.println("    </nav>");
+            out.println("  </div>");
+            out.println("</header>");
+            out.println("<main class=\"app-main\">");
+            out.println("<h2>Jurisdiction Results</h2>");
 
             // --- Parameter parsing ---
             String selectedJurisdiction = req.getParameter("jurisdiction");
@@ -178,10 +200,10 @@ public class ResultsServlet extends HttpServlet {
             }
 
             // --- Jurisdiction dropdown ---
-            out.println("<form method='get' class='w3-container' style='margin-top:16px;margin-bottom:16px;'>");
+            out.println("<form method='get' class='app-section' style='margin-top:16px;margin-bottom:16px;'>");
             out.println("<label for='jurisdiction'>Select Jurisdiction:</label> ");
             out.println(
-                    "<select name='jurisdiction' id='jurisdiction' class='w3-select' style='width:auto;display:inline;' onchange='this.form.submit()'>");
+                    "<select name='jurisdiction' id='jurisdiction' class='form-select' style='width:auto;display:inline;' onchange='this.form.submit()'>");
             for (Jurisdiction j : jurisdictions) {
                 String abbrev = j.getMapLink();
                 String label = j.getDisplayLabel();
@@ -200,10 +222,10 @@ public class ResultsServlet extends HttpServlet {
             nextMonth.add(Calendar.MONTH, 1);
             boolean showNext = nextMonth.before(currentMonthStart);
 
-            out.println("<div class='w3-container' style='margin-bottom:16px;'>");
+            out.println("<div class='app-section' style='margin-bottom:16px;'>");
             out.println("<form method='get' style='display:inline;'>");
             out.println("<input type='hidden' name='jurisdiction' value='" + selectedJurisdiction + "'>");
-            out.println("<button class='w3-button' type='submit' name='month' value='"
+            out.println("<button class='btn' type='submit' name='month' value='"
                     + sdfMonthYear.format(prevMonth.getTime()) + "'>&larr; " + sdfMonthYear.format(prevMonth.getTime())
                     + "</button>");
             out.println("</form>");
@@ -212,7 +234,7 @@ public class ResultsServlet extends HttpServlet {
             if (showNext) {
                 out.println("<form method='get' style='display:inline;'>");
                 out.println("<input type='hidden' name='jurisdiction' value='" + selectedJurisdiction + "'>");
-                out.println("<button class='w3-button' type='submit' name='month' value='"
+                out.println("<button class='btn' type='submit' name='month' value='"
                         + sdfMonthYear.format(nextMonth.getTime()) + "'>" + sdfMonthYear.format(nextMonth.getTime())
                         + " &rarr;</button>");
                 out.println("</form>");
@@ -269,51 +291,57 @@ public class ResultsServlet extends HttpServlet {
             List<RankedRow> allRows = new ArrayList<>(rowMap.values());
 
             // --- Table rendering skeleton ---
-            out.println("<div class='w3-container' style='margin-top:24px;'>");
+            out.println("<div class='app-section' style='margin-top:24px;'>");
             out.println("<h3>Updates (absolute)</h3>");
             out.println(
-                    "<p class='w3-text-grey'>Ranks jurisdictions by total update messages received for the selected month. Larger jurisdictions often appear near the top because this is a raw count.</p>");
+                    "<p class='text-muted'>Ranks jurisdictions by total update messages received for the selected month. Larger jurisdictions often appear near the top because this is a raw count.</p>");
             out.println(
-                    "<table class='w3-table w3-striped'><tr><th>Rank</th><th>Jurisdiction</th><th>Updates</th></tr>");
+                    "<table class='data-table table-striped'><tr><th>Rank</th><th>Jurisdiction</th><th>Updates</th></tr>");
             rankAndRenderTable(allRows, Comparator.comparingInt(r -> r.updates), selectedJurisdiction, out, "updates");
             out.println("</table>");
 
             out.println("<h3>Queries (absolute)</h3>");
             out.println(
-                    "<p class='w3-text-grey'>Ranks jurisdictions by total query messages received for the selected month. This is also a raw count and reflects overall activity volume.</p>");
+                    "<p class='text-muted'>Ranks jurisdictions by total query messages received for the selected month. This is also a raw count and reflects overall activity volume.</p>");
             out.println(
-                    "<table class='w3-table w3-striped'><tr><th>Rank</th><th>Jurisdiction</th><th>Queries</th></tr>");
+                    "<table class='data-table table-striped'><tr><th>Rank</th><th>Jurisdiction</th><th>Queries</th></tr>");
             rankAndRenderTable(allRows, Comparator.comparingInt(r -> r.queries), selectedJurisdiction, out, "queries");
             out.println("</table>");
 
             out.println("<h3>Updates Per Capita</h3>");
             out.println(
-                    "<p class='w3-text-grey'>Ranks jurisdictions by updates per 1,000 residents. This normalizes for population so jurisdictions can be compared more fairly across sizes.</p>");
+                    "<p class='text-muted'>Ranks jurisdictions by updates per 1,000 residents. This normalizes for population so jurisdictions can be compared more fairly across sizes.</p>");
             out.println(
-                    "<table class='w3-table w3-striped'><tr><th>Rank</th><th>Jurisdiction</th><th>Population</th><th>Updates</th><th>Updates/1,000 Residents</th></tr>");
+                    "<table class='data-table table-striped'><tr><th>Rank</th><th>Jurisdiction</th><th>Population</th><th>Updates</th><th>Updates/1,000 Residents</th></tr>");
             rankAndRenderTable(allRows, Comparator.comparingDouble(r -> r.updatesPerCapita), selectedJurisdiction, out,
                     "updatesPerCapita");
             out.println("</table>");
 
             out.println("<h3>Queries Per Capita</h3>");
             out.println(
-                    "<p class='w3-text-grey'>Ranks jurisdictions by queries per 1,000 residents. This shows how much query activity exists relative to population size.</p>");
+                    "<p class='text-muted'>Ranks jurisdictions by queries per 1,000 residents. This shows how much query activity exists relative to population size.</p>");
             out.println(
-                    "<table class='w3-table w3-striped'><tr><th>Rank</th><th>Jurisdiction</th><th>Population</th><th>Queries</th><th>Queries/1,000 Residents</th></tr>");
+                    "<table class='data-table table-striped'><tr><th>Rank</th><th>Jurisdiction</th><th>Population</th><th>Queries</th><th>Queries/1,000 Residents</th></tr>");
             rankAndRenderTable(allRows, Comparator.comparingDouble(r -> r.queriesPerCapita), selectedJurisdiction, out,
                     "queriesPerCapita");
             out.println("</table>");
 
             out.println("<h3>Query/Update Balance</h3>");
             out.println(
-                    "<p class='w3-text-grey'>Ranks jurisdictions by the ratio of queries to updates. Higher values indicate more query activity compared with the number of updates submitted.</p>");
+                    "<p class='text-muted'>Ranks jurisdictions by the ratio of queries to updates. Higher values indicate more query activity compared with the number of updates submitted.</p>");
             out.println(
-                    "<table class='w3-table w3-striped'><tr><th>Rank</th><th>Jurisdiction</th><th>Updates</th><th>Queries</th><th>Queries per Update</th></tr>");
+                    "<table class='data-table table-striped'><tr><th>Rank</th><th>Jurisdiction</th><th>Updates</th><th>Queries</th><th>Queries per Update</th></tr>");
             rankAndRenderTable(allRows, Comparator.comparingDouble(r -> r.queryUpdateRatio), selectedJurisdiction, out,
                     "queryUpdateRatio");
             out.println("</table>");
             out.println("</div>");
 
+            out.println("</main>");
+            out.println("<footer class=\"app-footer\">");
+            out.println("  <p>CLEAR " + org.immregistries.clear.SoftwareVersion.VERSION
+                    + " - <a href=\"https://aira.memberclicks.net/assets/docs/Organizational_Docs/AIRA%20Privacy%20Policy%20-%20Final%202024_.pdf\">AIRA Privacy Policy</a> - "
+                    + "<a href=\"https://aira.memberclicks.net/assets/docs/Organizational_Docs/AIRA%20Terms%20of%20Use%20-%20Final%202024_.pdf\">AIRA Terms and Conditions of Use</a></p>");
+            out.println("</footer>");
             out.println("</body></html>");
         } catch (Exception e) {
             out.println("<h3>Exception</h3>");

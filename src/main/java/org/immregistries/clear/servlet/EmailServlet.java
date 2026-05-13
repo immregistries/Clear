@@ -48,8 +48,8 @@ public class EmailServlet extends HttpServlet {
 
             String message = req.getParameter("message");
             if (message != null && !message.trim().isEmpty()) {
-                String panelClass = "1".equals(req.getParameter("error")) ? "w3-pale-red" : "w3-pale-green";
-                out.println("<div class=\"w3-panel " + panelClass + "\">" + escapeHtml(message) + "</div>");
+                String panelClass = "1".equals(req.getParameter("error")) ? "alert-error" : "alert-success";
+                out.println("<div class=\"alert-panel " + panelClass + "\">" + escapeHtml(message) + "</div>");
             }
 
             out.println("<form method=\"POST\">");
@@ -61,7 +61,7 @@ public class EmailServlet extends HttpServlet {
             }
             out.println("   </select>");
             out.println("      <label for=\"jurisdictionInput\">jurisdiction</label></br></br>");
-            out.println("   <input class=\"w3-button\" type=\"submit\" value=\"Submit\">");
+            out.println("   <input class=\"btn\" type=\"submit\" value=\"Submit\">");
             out.println("</form>");
 
             System.out.println("--> printing footer");
@@ -144,33 +144,43 @@ public class EmailServlet extends HttpServlet {
         out.println("<html>");
         out.println("  <head>");
         out.println("    <title>CLEAR - Community Led Exchange and Aggregate Reporting</title>");
-        out.println("    <link rel=\"stylesheet\" href=\"https://www.w3schools.com/w3css/4/w3.css\"/>");
+        out.println("    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+        out.println("    <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">");
+        out.println("    <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>");
+        out.println(
+                "    <link href=\"https://fonts.googleapis.com/css?family=Open+Sans:400,700|Roboto:400,700\" rel=\"stylesheet\">");
+        out.println("    <link rel=\"stylesheet\" href=\"/clear/css/clear-brand.css\"/>");
         out.println("  </head>");
-        out.println("  <body>");
+        out.println("  <body class=\"app-body\">");
 
-        out.println("    <header class=\"w3-container w3-green\">");
-        out.println("      <div class=\"w3-bar\">");
-        out.println("        <h1>CLEAR - Community Led Exchange and Aggregate Reporting</h1> ");
-        out.println("        <a href=\"/clear/?" + PARAM_VIEW + "=" + VIEW_DATA
-                + "\" class=\"w3-bar-item w3-button\">Data</a> ");
-        out.println("        <a href=\"/clear/?" + PARAM_VIEW + "=" + VIEW_MAP
-                + "\" class=\"w3-bar-item w3-button\">Map</a> ");
-        out.println("        <a href=\"/clear/email\" class=\"w3-bar-item w3-button\">Mail</a> ");
-        out.println("        <a href=\"/clear/admin\" class=\"w3-bar-item w3-button\">Admin</a> ");
+        out.println("    <header class=\"app-header\">");
+        out.println("      <div class=\"app-header-inner\">");
+        out.println("        <a class=\"app-brand\" href=\"/clear/dashboard?" + PARAM_VIEW + "=" + VIEW_DATA + "\">");
+        out.println("          <img class=\"app-brand-logo\" src=\"/clear/images/aira_logo.webp\" alt=\"AIRA\">");
+        out.println("          <span>CLEAR</span>");
+        out.println("        </a>");
+        out.println("        <nav class=\"app-nav\">");
+        out.println("        <a href=\"/clear/dashboard?" + PARAM_VIEW + "=" + VIEW_DATA
+                + "\" class=\"app-nav-item\">Data</a> ");
+        out.println("        <a href=\"/clear/dashboard?" + PARAM_VIEW + "=" + VIEW_MAP
+                + "\" class=\"app-nav-item\">Map</a> ");
+        out.println("        <a href=\"/clear/email\" class=\"app-nav-item\">Mail</a> ");
+        out.println("        <a href=\"/clear/admin\" class=\"app-nav-item\">Admin</a> ");
+        out.println("        </nav>");
         out.println("      </div>");
         out.println("    </header>");
-        out.println("    <div class=\"w3-container\">");
+        out.println("    <main class=\"app-main\">");
     }
 
     protected void printFooter(PrintWriter out) {
-        out.println("  </div>");
-        out.println("  <div class=\"w3-container w3-green\">");
+        out.println("  </main>");
+        out.println("  <footer class=\"app-footer\">");
         out.println("      <p>CLEAR " + SoftwareVersion.VERSION + " - ");
         out.println(
                 "      <a href=\"https://aira.memberclicks.net/assets/docs/Organizational_Docs/AIRA%20Privacy%20Policy%20-%20Final%202024_.pdf\" class=\"underline\">AIRA Privacy Policy</a> - ");
         out.println(
                 "      <a href=\"https://aira.memberclicks.net/assets/docs/Organizational_Docs/AIRA%20Terms%20of%20Use%20-%20Final%202024_.pdf\" class=\"underline\">AIRA Terms and Conditions of Use</a></p>");
-        out.println("    </div>");
+        out.println("    </footer>");
         out.println("  </body>");
         out.println("</html>");
     }

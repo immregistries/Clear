@@ -862,18 +862,18 @@ public class AdminServlet extends HttpServlet {
             printHeader(out, sessionUser);
             out.println("<h2>Admin</h2>");
             out.println(
-                    "<p><a class=\"w3-button w3-blue\" href=\"/clear/admin/jurisdictions\">Manage Jurisdictions</a></p>");
-            out.println("<p><a class=\"w3-button w3-teal\" href=\"/clear/admin/contacts\">Manage Contacts</a></p>");
+                    "<p><a class=\"btn btn-primary\" href=\"/clear/admin/jurisdictions\">Manage Jurisdictions</a></p>");
+            out.println("<p><a class=\"btn btn-primary\" href=\"/clear/admin/contacts\">Manage Contacts</a></p>");
             out.println("<h3>System Settings</h3>");
             out.println("<p>Manage system-level configuration values.</p>");
 
             if (message != null && !message.isEmpty()) {
-                String panelClass = error ? "w3-pale-red" : "w3-pale-green";
-                out.println("<div class=\"w3-panel " + panelClass + "\">" + escapeHtml(message) + "</div>");
+                String panelClass = error ? "alert-error" : "alert-success";
+                out.println("<div class=\"alert-panel " + panelClass + "\">" + escapeHtml(message) + "</div>");
             }
 
-            out.println("<form method=\"POST\" class=\"w3-container\">");
-            out.println("  <table class=\"w3-table w3-bordered w3-striped\">");
+            out.println("<form method=\"POST\" class=\"app-section\">");
+            out.println("  <table class=\"data-table table-bordered table-striped\">");
             out.println("    <tr><th>Setting</th><th>Value</th><th>Description</th></tr>");
             for (SettingDefinition definition : SETTING_DEFINITIONS) {
                 out.println("    <tr>");
@@ -886,36 +886,36 @@ public class AdminServlet extends HttpServlet {
             out.println("  </table>");
             out.println("  <p>");
             out.println("    <label>");
-            out.println("      <input class=\"w3-check\" type=\"checkbox\" name=\"" + PARAM_SEND_TEST_EMAIL
+            out.println("      <input class=\"form-check\" type=\"checkbox\" name=\"" + PARAM_SEND_TEST_EMAIL
                     + "\" value=\"1\"> Send test email to " + escapeHtml(sessionUser.getEmail()));
             out.println("    </label>");
             out.println("  </p>");
-            out.println("  <p><button class=\"w3-button w3-green\" type=\"submit\">Save Settings</button></p>");
+            out.println("  <p><button class=\"btn btn-primary\" type=\"submit\">Save Settings</button></p>");
             out.println("</form>");
 
             out.println("<hr>");
             out.println("<h3>EntryForInterop CSV</h3>");
             out.println("<p>Download all EntryForInterop data or upload a CSV to upsert records.</p>");
-            out.println("<p><a class=\"w3-button w3-blue\" href=\"?" + PARAM_ACTION + "="
+            out.println("<p><a class=\"btn btn-primary\" href=\"?" + PARAM_ACTION + "="
                     + ACTION_DOWNLOAD_ENTRY_FOR_INTEROP + "\">Download CSV</a></p>");
-            out.println("<form method=\"POST\" enctype=\"multipart/form-data\" class=\"w3-container\">");
+            out.println("<form method=\"POST\" enctype=\"multipart/form-data\" class=\"app-section\">");
             out.println("  <input type=\"hidden\" name=\"" + PARAM_ACTION + "\" value=\""
                     + ACTION_UPLOAD_ENTRY_FOR_INTEROP + "\">");
-            out.println("  <p><input class=\"w3-input\" type=\"file\" name=\"" + PARAM_ENTRY_FOR_INTEROP_FILE
+            out.println("  <p><input class=\"form-input\" type=\"file\" name=\"" + PARAM_ENTRY_FOR_INTEROP_FILE
                     + "\" accept=\".csv,text/csv\"></p>");
-            out.println("  <p><button class=\"w3-button w3-orange\" type=\"submit\">Upload CSV</button></p>");
+            out.println("  <p><button class=\"btn btn-primary\" type=\"submit\">Upload CSV</button></p>");
             out.println("</form>");
 
             out.println("<hr>");
             out.println("<h3>Jurisdiction Access Overrides</h3>");
             out.println(
                     "<p>Only explicit overrides are stored here. Home-jurisdiction access remains implicit unless overridden.</p>");
-            out.println("<form method=\"POST\" class=\"w3-container\" style=\"max-width: 720px; padding-left: 0;\">");
+            out.println("<form method=\"POST\" class=\"app-section\" style=\"max-width: 720px; padding-left: 0;\">");
             out.println("  <input type=\"hidden\" name=\"" + PARAM_ACTION + "\" value=\""
                     + ACTION_SAVE_ACCESS_OVERRIDE + "\">");
             out.println("  <input type=\"hidden\" name=\"" + PARAM_ACCESS_OVERRIDE_ID + "\" value=\"\">");
             out.println("  <p><label>Contact</label>");
-            out.println("  <select class=\"w3-select\" name=\"" + PARAM_ACCESS_CONTACT_ID + "\">");
+            out.println("  <select class=\"form-select\" name=\"" + PARAM_ACCESS_CONTACT_ID + "\">");
             out.println("    <option value=\"\">Select contact</option>");
             for (Contact contact : contacts) {
                 out.println("    <option value=\"" + contact.getContactId() + "\">"
@@ -923,7 +923,7 @@ public class AdminServlet extends HttpServlet {
             }
             out.println("  </select></p>");
             out.println("  <p><label>Jurisdiction</label>");
-            out.println("  <select class=\"w3-select\" name=\"" + PARAM_ACCESS_JURISDICTION_ID + "\">");
+            out.println("  <select class=\"form-select\" name=\"" + PARAM_ACCESS_JURISDICTION_ID + "\">");
             out.println("    <option value=\"\">Select jurisdiction</option>");
             for (Jurisdiction jurisdiction : jurisdictions) {
                 out.println("    <option value=\"" + jurisdiction.getJurisdictionId() + "\">"
@@ -931,16 +931,16 @@ public class AdminServlet extends HttpServlet {
             }
             out.println("  </select></p>");
             out.println("  <p><label>Access Role</label>");
-            out.println("  <select class=\"w3-select\" name=\"" + PARAM_ACCESS_ROLE + "\">");
+            out.println("  <select class=\"form-select\" name=\"" + PARAM_ACCESS_ROLE + "\">");
             for (JurisdictionAccessRole accessRole : JurisdictionAccessRole.values()) {
                 out.println("    <option value=\"" + accessRole.name() + "\">"
                         + escapeHtml(formatRoleLabel(accessRole)) + "</option>");
             }
             out.println("  </select></p>");
-            out.println("  <p><button class=\"w3-button w3-teal\" type=\"submit\">Save Access Override</button></p>");
+            out.println("  <p><button class=\"btn btn-primary\" type=\"submit\">Save Access Override</button></p>");
             out.println("</form>");
 
-            out.println("<table class=\"w3-table w3-bordered w3-striped\">");
+            out.println("<table class=\"data-table table-bordered table-striped\">");
             out.println(
                     "  <tr><th>Contact</th><th>Home Jurisdiction</th><th>Override Jurisdiction</th><th>Role</th><th>Updated</th><th>Action</th></tr>");
             for (AccessOverrideDisplay accessOverride : accessOverrides) {
@@ -956,7 +956,7 @@ public class AdminServlet extends HttpServlet {
                         + ACTION_DELETE_ACCESS_OVERRIDE + "\">");
                 out.println("        <input type=\"hidden\" name=\"" + PARAM_ACCESS_OVERRIDE_ID + "\" value=\""
                         + accessOverride.accessOverrideId + "\">");
-                out.println("        <button class=\"w3-button w3-small w3-red\" type=\"submit\">Remove</button>");
+                out.println("        <button class=\"btn btn-small btn-danger\" type=\"submit\">Remove</button>");
                 out.println("      </form>");
                 out.println("    </td>");
                 out.println("  </tr>");
@@ -1544,23 +1544,23 @@ public class AdminServlet extends HttpServlet {
 
             printHeader(out, sessionUser);
             out.println("<h2>Contact Admin</h2>");
-            out.println("<p><a class=\"w3-button w3-light-grey\" href=\"/clear/admin\">Back to Admin</a></p>");
+            out.println("<p><a class=\"btn btn\" href=\"/clear/admin\">Back to Admin</a></p>");
             if (message != null && !message.isEmpty()) {
-                String panelClass = error ? "w3-pale-red" : "w3-pale-green";
-                out.println("<div class=\"w3-panel " + panelClass + "\">" + escapeHtml(message) + "</div>");
+                String panelClass = error ? "alert-error" : "alert-success";
+                out.println("<div class=\"alert-panel " + panelClass + "\">" + escapeHtml(message) + "</div>");
             }
 
             out.println("<h3>Search Contacts</h3>");
-            out.println("<form method=\"GET\" class=\"w3-container\" action=\"/clear/admin/contacts\">");
+            out.println("<form method=\"GET\" class=\"app-section\" action=\"/clear/admin/contacts\">");
             out.println("  <p>");
-            out.println("    <input class=\"w3-input\" type=\"text\" name=\"" + PARAM_CONTACT_SEARCH
+            out.println("    <input class=\"form-input\" type=\"text\" name=\"" + PARAM_CONTACT_SEARCH
                     + "\" value=\"" + escapeHtml(safe(searchText))
                     + "\" placeholder=\"Search first name, last name, or email\">");
             out.println("  </p>");
-            out.println("  <p><button class=\"w3-button w3-blue\" type=\"submit\">Search</button></p>");
+            out.println("  <p><button class=\"btn btn-primary\" type=\"submit\">Search</button></p>");
             out.println("</form>");
 
-            out.println("<table class=\"w3-table w3-bordered w3-striped\">");
+            out.println("<table class=\"data-table table-bordered table-striped\">");
             out.println(
                     "  <tr><th>First Name</th><th>Last Name</th><th>Email</th><th>Jurisdiction</th><th>Action</th></tr>");
             for (Contact contact : contacts) {
@@ -1575,7 +1575,7 @@ public class AdminServlet extends HttpServlet {
                 out.println("    <td>" + escapeHtml(safe(contact.getEmailAddress())) + "</td>");
                 out.println("    <td>" + escapeHtml(jurisdiction == null ? "" : safe(jurisdiction.getDisplayLabel()))
                         + "</td>");
-                out.println("    <td><a class=\"w3-button w3-small w3-teal\" href=\"" + href
+                out.println("    <td><a class=\"btn btn-small btn-primary\" href=\"" + href
                         + "\">View/Edit</a></td>");
                 out.println("  </tr>");
             }
@@ -1583,64 +1583,64 @@ public class AdminServlet extends HttpServlet {
 
             out.println("<hr>");
             out.println("<h3>Add Contact</h3>");
-            out.println("<form method=\"POST\" class=\"w3-container\" style=\"max-width: 720px; padding-left: 0;\">");
+            out.println("<form method=\"POST\" class=\"app-section\" style=\"max-width: 720px; padding-left: 0;\">");
             out.println("  <input type=\"hidden\" name=\"" + PARAM_ACTION + "\" value=\"" + ACTION_ADD_CONTACT
                     + "\">");
             out.println("  <input type=\"hidden\" name=\"" + PARAM_CONTACT_SEARCH + "\" value=\""
                     + escapeHtml(safe(searchText)) + "\">");
-            out.println("  <p><label>First Name</label><input class=\"w3-input\" type=\"text\" name=\""
+            out.println("  <p><label>First Name</label><input class=\"form-input\" type=\"text\" name=\""
                     + PARAM_CONTACT_FIRST_NAME + "\"></p>");
-            out.println("  <p><label>Last Name</label><input class=\"w3-input\" type=\"text\" name=\""
+            out.println("  <p><label>Last Name</label><input class=\"form-input\" type=\"text\" name=\""
                     + PARAM_CONTACT_LAST_NAME + "\"></p>");
-            out.println("  <p><label>Email</label><input class=\"w3-input\" type=\"text\" name=\""
+            out.println("  <p><label>Email</label><input class=\"form-input\" type=\"text\" name=\""
                     + PARAM_CONTACT_EMAIL + "\"></p>");
             out.println("  <p><label>Jurisdiction</label>");
-            out.println("  <select class=\"w3-select\" name=\"" + PARAM_CONTACT_JURISDICTION_ID + "\">");
+            out.println("  <select class=\"form-select\" name=\"" + PARAM_CONTACT_JURISDICTION_ID + "\">");
             out.println("    <option value=\"\">Select jurisdiction</option>");
             for (Jurisdiction jurisdiction : jurisdictions) {
                 out.println("    <option value=\"" + jurisdiction.getJurisdictionId() + "\">"
                         + escapeHtml(jurisdiction.getDisplayLabel()) + "</option>");
             }
             out.println("  </select></p>");
-            out.println("  <p><button class=\"w3-button w3-green\" type=\"submit\">Add Contact</button></p>");
+            out.println("  <p><button class=\"btn btn-primary\" type=\"submit\">Add Contact</button></p>");
             out.println("</form>");
 
             out.println("<hr>");
             out.println("<h3>Upload Contacts CSV</h3>");
             out.println("<p>Upload CSV with columns Org Name, AART IIS Acronym, First Name, Last Name, Email.</p>");
             out.println(
-                    "<form method=\"POST\" enctype=\"multipart/form-data\" class=\"w3-container\" style=\"max-width: 720px; padding-left: 0;\">");
+                    "<form method=\"POST\" enctype=\"multipart/form-data\" class=\"app-section\" style=\"max-width: 720px; padding-left: 0;\">");
             out.println("  <input type=\"hidden\" name=\"" + PARAM_ACTION + "\" value=\"" + ACTION_UPLOAD_CONTACTS
                     + "\">");
             out.println("  <input type=\"hidden\" name=\"" + PARAM_CONTACT_SEARCH + "\" value=\""
                     + escapeHtml(safe(searchText)) + "\">");
-            out.println("  <p><input class=\"w3-input\" type=\"file\" name=\"" + PARAM_CONTACT_FILE
+            out.println("  <p><input class=\"form-input\" type=\"file\" name=\"" + PARAM_CONTACT_FILE
                     + "\" accept=\".csv,text/csv\"></p>");
-            out.println("  <p><button class=\"w3-button w3-orange\" type=\"submit\">Upload Contacts</button></p>");
+            out.println("  <p><button class=\"btn btn-primary\" type=\"submit\">Upload Contacts</button></p>");
             out.println("</form>");
 
             if (selectedContact != null) {
                 out.println("<hr>");
                 out.println("<h3>Edit Contact</h3>");
                 out.println(
-                        "<form method=\"POST\" class=\"w3-container\" style=\"max-width: 720px; padding-left: 0;\">");
+                        "<form method=\"POST\" class=\"app-section\" style=\"max-width: 720px; padding-left: 0;\">");
                 out.println("  <input type=\"hidden\" name=\"" + PARAM_ACTION + "\" value=\"" + ACTION_SAVE_CONTACT
                         + "\">");
                 out.println("  <input type=\"hidden\" name=\"" + PARAM_CONTACT_SEARCH + "\" value=\""
                         + escapeHtml(safe(searchText)) + "\">");
                 out.println("  <input type=\"hidden\" name=\"" + PARAM_CONTACT_ID + "\" value=\""
                         + selectedContact.getContactId() + "\">");
-                out.println("  <p><label>First Name</label><input class=\"w3-input\" type=\"text\" name=\""
+                out.println("  <p><label>First Name</label><input class=\"form-input\" type=\"text\" name=\""
                         + PARAM_CONTACT_FIRST_NAME + "\" value=\""
                         + escapeHtml(safe(selectedContact.getNameFirst())) + "\"></p>");
-                out.println("  <p><label>Last Name</label><input class=\"w3-input\" type=\"text\" name=\""
+                out.println("  <p><label>Last Name</label><input class=\"form-input\" type=\"text\" name=\""
                         + PARAM_CONTACT_LAST_NAME + "\" value=\""
                         + escapeHtml(safe(selectedContact.getNameLast())) + "\"></p>");
-                out.println("  <p><label>Email</label><input class=\"w3-input\" type=\"text\" name=\""
+                out.println("  <p><label>Email</label><input class=\"form-input\" type=\"text\" name=\""
                         + PARAM_CONTACT_EMAIL + "\" value=\""
                         + escapeHtml(safe(selectedContact.getEmailAddress())) + "\"></p>");
                 out.println("  <p><label>Jurisdiction</label>");
-                out.println("  <select class=\"w3-select\" name=\"" + PARAM_CONTACT_JURISDICTION_ID + "\">");
+                out.println("  <select class=\"form-select\" name=\"" + PARAM_CONTACT_JURISDICTION_ID + "\">");
                 out.println("    <option value=\"\">Select jurisdiction</option>");
                 for (Jurisdiction jurisdiction : jurisdictions) {
                     boolean selected = jurisdiction.getJurisdictionId() == selectedContact.getJurisdictionId();
@@ -1649,12 +1649,12 @@ public class AdminServlet extends HttpServlet {
                             + escapeHtml(jurisdiction.getDisplayLabel()) + "</option>");
                 }
                 out.println("  </select></p>");
-                out.println("  <p><button class=\"w3-button w3-teal\" type=\"submit\">Save Contact</button></p>");
+                out.println("  <p><button class=\"btn btn-primary\" type=\"submit\">Save Contact</button></p>");
                 out.println("</form>");
 
                 out.println("<h3>Contact Jurisdiction Access</h3>");
                 out.println(
-                        "<form method=\"POST\" class=\"w3-container\" style=\"max-width: 720px; padding-left: 0;\">");
+                        "<form method=\"POST\" class=\"app-section\" style=\"max-width: 720px; padding-left: 0;\">");
                 out.println("  <input type=\"hidden\" name=\"" + PARAM_ACTION + "\" value=\""
                         + ACTION_SAVE_CONTACT_ACCESS + "\">");
                 out.println("  <input type=\"hidden\" name=\"" + PARAM_CONTACT_SEARCH + "\" value=\""
@@ -1662,7 +1662,7 @@ public class AdminServlet extends HttpServlet {
                 out.println("  <input type=\"hidden\" name=\"" + PARAM_CONTACT_ID + "\" value=\""
                         + selectedContact.getContactId() + "\">");
                 out.println("  <p><label>Jurisdiction</label>");
-                out.println("  <select class=\"w3-select\" name=\"" + PARAM_CONTACT_ACCESS_JURISDICTION_ID + "\">");
+                out.println("  <select class=\"form-select\" name=\"" + PARAM_CONTACT_ACCESS_JURISDICTION_ID + "\">");
                 out.println("    <option value=\"\">Select jurisdiction</option>");
                 for (Jurisdiction jurisdiction : jurisdictions) {
                     out.println("    <option value=\"" + jurisdiction.getJurisdictionId() + "\">"
@@ -1670,17 +1670,17 @@ public class AdminServlet extends HttpServlet {
                 }
                 out.println("  </select></p>");
                 out.println("  <p><label>Access Role</label>");
-                out.println("  <select class=\"w3-select\" name=\"" + PARAM_CONTACT_ACCESS_ROLE + "\">");
+                out.println("  <select class=\"form-select\" name=\"" + PARAM_CONTACT_ACCESS_ROLE + "\">");
                 for (JurisdictionAccessRole accessRole : JurisdictionAccessRole.values()) {
                     out.println("    <option value=\"" + accessRole.name() + "\">"
                             + escapeHtml(formatRoleLabel(accessRole)) + "</option>");
                 }
                 out.println("  </select></p>");
                 out.println(
-                        "  <p><button class=\"w3-button w3-blue\" type=\"submit\">Save Contact Access</button></p>");
+                        "  <p><button class=\"btn btn-primary\" type=\"submit\">Save Contact Access</button></p>");
                 out.println("</form>");
 
-                out.println("<table class=\"w3-table w3-bordered w3-striped\">");
+                out.println("<table class=\"data-table table-bordered table-striped\">");
                 out.println("  <tr><th>Jurisdiction</th><th>Role</th><th>Updated</th><th>Action</th></tr>");
                 SimpleDateFormat accessDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm");
                 for (ContactJurisdictionAccess access : selectedContactAccess) {
@@ -1703,7 +1703,7 @@ public class AdminServlet extends HttpServlet {
                             + selectedContact.getContactId() + "\">");
                     out.println("        <input type=\"hidden\" name=\"" + PARAM_CONTACT_ACCESS_ID + "\" value=\""
                             + access.getContactJurisdictionAccessId() + "\">");
-                    out.println("        <button class=\"w3-button w3-small w3-red\" type=\"submit\">Remove</button>");
+                    out.println("        <button class=\"btn btn-small btn-danger\" type=\"submit\">Remove</button>");
                     out.println("      </form>");
                     out.println("    </td>");
                     out.println("  </tr>");
@@ -1863,15 +1863,15 @@ public class AdminServlet extends HttpServlet {
             Map<Integer, Contact> primaryReporterByJurisdiction = loadPrimaryReporterByJurisdiction(session);
             printHeader(out, sessionUser);
             out.println("<h2>Jurisdictions</h2>");
-            out.println("<p><a class=\"w3-button w3-light-grey\" href=\"/clear/admin\">Back to Admin</a></p>");
+            out.println("<p><a class=\"btn btn\" href=\"/clear/admin\">Back to Admin</a></p>");
             if (message != null && !message.isEmpty()) {
-                String panelClass = error ? "w3-pale-red" : "w3-pale-green";
-                out.println("<div class=\"w3-panel " + panelClass + "\">" + escapeHtml(message) + "</div>");
+                String panelClass = error ? "alert-error" : "alert-success";
+                out.println("<div class=\"alert-panel " + panelClass + "\">" + escapeHtml(message) + "</div>");
             }
 
             out.println("<h3>Jurisdiction List</h3>");
             out.println("<p>Select Edit to update display settings and contact access roles.</p>");
-            out.println("<table class=\"w3-table w3-bordered w3-striped\">");
+            out.println("<table class=\"data-table table-bordered table-striped\">");
             out.println(
                     "  <tr><th>Display Label</th><th>Map Link</th><th>Primary Reporter</th><th>ID</th><th>Action</th></tr>");
             for (JurisdictionEditRow row : rows) {
@@ -1885,7 +1885,7 @@ public class AdminServlet extends HttpServlet {
                         + escapeHtml(primaryReporter == null ? "Unassigned" : formatContactLabel(primaryReporter))
                         + "</a></td>");
                 out.println("      <td>" + row.getJurisdictionId() + "</td>");
-                out.println("      <td><a class=\"w3-button w3-small w3-teal\" href=\"" + editHref
+                out.println("      <td><a class=\"btn btn-small btn-primary\" href=\"" + editHref
                         + "\">Edit</a></td>");
                 out.println("    </tr>");
             }
@@ -1898,13 +1898,13 @@ public class AdminServlet extends HttpServlet {
                     "<pre>SELECT test_participant_label, map_link FROM test_participant WHERE map_link IS NOT NULL AND map_link &lt;&gt; '';</pre>");
             out.println(
                     "<p>Paste the results below as one line per jurisdiction in the form <strong>displayLabel, mapLink</strong>.</p>");
-            out.println("<form method=\"POST\" class=\"w3-container\">");
+            out.println("<form method=\"POST\" class=\"app-section\">");
             out.println("  <input type=\"hidden\" name=\"" + PARAM_ACTION + "\" value=\""
                     + ACTION_BULK_UPDATE_JURISDICTIONS + "\">");
-            out.println("  <p><textarea class=\"w3-input\" name=\"" + PARAM_BULK_JURISDICTION_TEXT
+            out.println("  <p><textarea class=\"form-input\" name=\"" + PARAM_BULK_JURISDICTION_TEXT
                     + "\" rows=\"12\" style=\"font-family: monospace;\">"
                     + escapeHtml(safe(bulkText)) + "</textarea></p>");
-            out.println("  <p><button class=\"w3-button w3-blue\" type=\"submit\">Apply Bulk Update</button></p>");
+            out.println("  <p><button class=\"btn btn-primary\" type=\"submit\">Apply Bulk Update</button></p>");
             out.println("</form>");
 
             printFooter(out);
@@ -1926,13 +1926,13 @@ public class AdminServlet extends HttpServlet {
             printHeader(out, sessionUser);
             out.println("<h2>Edit Jurisdiction</h2>");
             out.println(
-                    "<p><a class=\"w3-button w3-light-grey\" href=\"/clear/admin/jurisdictions\">Back to Jurisdictions</a></p>");
+                    "<p><a class=\"btn btn\" href=\"/clear/admin/jurisdictions\">Back to Jurisdictions</a></p>");
             if (message != null && !message.isEmpty()) {
-                String panelClass = error ? "w3-pale-red" : "w3-pale-green";
-                out.println("<div class=\"w3-panel " + panelClass + "\">" + escapeHtml(message) + "</div>");
+                String panelClass = error ? "alert-error" : "alert-success";
+                out.println("<div class=\"alert-panel " + panelClass + "\">" + escapeHtml(message) + "</div>");
             }
             if (jurisdiction == null) {
-                out.println("<div class=\"w3-panel w3-pale-red\">Jurisdiction not found.</div>");
+                out.println("<div class=\"alert-panel alert-error\">Jurisdiction not found.</div>");
                 printFooter(out);
                 return;
             }
@@ -1958,7 +1958,7 @@ public class AdminServlet extends HttpServlet {
             }
 
             out.println("<h3>Jurisdiction Details</h3>");
-            out.println("<form method=\"POST\" class=\"w3-container\" style=\"max-width: 720px; padding-left: 0;\">");
+            out.println("<form method=\"POST\" class=\"app-section\" style=\"max-width: 720px; padding-left: 0;\">");
             out.println("  <input type=\"hidden\" name=\"" + PARAM_ACTION + "\" value=\""
                     + ACTION_SAVE_JURISDICTION_DETAILS + "\">");
             out.println("  <input type=\"hidden\" name=\"" + PARAM_TARGET_JURISDICTION_ID + "\" value=\""
@@ -1967,13 +1967,13 @@ public class AdminServlet extends HttpServlet {
                     + escapeHtml(safe(localSearch)) + "\">");
             out.println("  <input type=\"hidden\" name=\"" + PARAM_GLOBAL_CONTACT_SEARCH + "\" value=\""
                     + escapeHtml(safe(globalSearch)) + "\">");
-            out.println("  <p><label>Display Label</label><input class=\"w3-input\" type=\"text\" name=\""
+            out.println("  <p><label>Display Label</label><input class=\"form-input\" type=\"text\" name=\""
                     + PARAM_JURISDICTION_DISPLAY_LABEL + "\" value=\""
                     + escapeHtml(safe(jurisdiction.getDisplayLabel())) + "\"></p>");
-            out.println("  <p><label>Map Link</label><input class=\"w3-input\" type=\"text\" name=\""
+            out.println("  <p><label>Map Link</label><input class=\"form-input\" type=\"text\" name=\""
                     + PARAM_JURISDICTION_MAP_LINK + "\" value=\""
                     + escapeHtml(safe(jurisdiction.getMapLink())) + "\"></p>");
-            out.println("  <p><button class=\"w3-button w3-green\" type=\"submit\">Save Jurisdiction</button></p>");
+            out.println("  <p><button class=\"btn btn-primary\" type=\"submit\">Save Jurisdiction</button></p>");
             out.println("</form>");
 
             out.println("<hr>");
@@ -1994,22 +1994,22 @@ public class AdminServlet extends HttpServlet {
                 out.println("  <input type=\"hidden\" name=\"" + PARAM_GLOBAL_CONTACT_SEARCH + "\" value=\""
                         + escapeHtml(safe(globalSearch)) + "\">");
                 out.println(
-                        "  <button class=\"w3-button w3-small w3-red\" type=\"submit\">Remove Primary Reporter</button>");
+                        "  <button class=\"btn btn-small btn-danger\" type=\"submit\">Remove Primary Reporter</button>");
                 out.println("</form>");
             }
 
             out.println("<h4>Find Contact In This Jurisdiction</h4>");
             out.println(
-                    "<form method=\"GET\" class=\"w3-container\" style=\"max-width: 720px; padding-left: 0;\" action=\"/clear/admin/jurisdictions/edit\">");
+                    "<form method=\"GET\" class=\"app-section\" style=\"max-width: 720px; padding-left: 0;\" action=\"/clear/admin/jurisdictions/edit\">");
             out.println("  <input type=\"hidden\" name=\"" + PARAM_JURISDICTION_ID + "\" value=\""
                     + jurisdiction.getJurisdictionId() + "\">");
-            out.println("  <p><input class=\"w3-input\" type=\"text\" name=\"" + PARAM_LOCAL_CONTACT_SEARCH
+            out.println("  <p><input class=\"form-input\" type=\"text\" name=\"" + PARAM_LOCAL_CONTACT_SEARCH
                     + "\" value=\"" + escapeHtml(safe(localSearch))
                     + "\" placeholder=\"Type part of first name, last name, or email\"></p>");
-            out.println("  <p><button class=\"w3-button w3-blue\" type=\"submit\">Search Local Contacts</button></p>");
+            out.println("  <p><button class=\"btn btn-primary\" type=\"submit\">Search Local Contacts</button></p>");
             out.println("</form>");
 
-            out.println("<table class=\"w3-table w3-bordered w3-striped\">");
+            out.println("<table class=\"data-table table-bordered table-striped\">");
             out.println(
                     "  <tr><th>Contact</th><th>Role</th><th>Primary</th><th>Secondary</th><th>Not Authorized</th><th>Viewer</th><th>Remove Override</th></tr>");
             for (Contact contact : localContacts) {
@@ -2043,19 +2043,19 @@ public class AdminServlet extends HttpServlet {
             out.println("  <summary><strong>Search all contacts (outside jurisdiction)</strong></summary>");
             out.println("  <p>Use this only when a reporter should come from another jurisdiction.</p>");
             out.println(
-                    "  <form method=\"GET\" class=\"w3-container\" style=\"max-width: 720px; padding-left: 0;\" action=\"/clear/admin/jurisdictions/edit\">");
+                    "  <form method=\"GET\" class=\"app-section\" style=\"max-width: 720px; padding-left: 0;\" action=\"/clear/admin/jurisdictions/edit\">");
             out.println("    <input type=\"hidden\" name=\"" + PARAM_JURISDICTION_ID + "\" value=\""
                     + jurisdiction.getJurisdictionId() + "\">");
             out.println("    <input type=\"hidden\" name=\"" + PARAM_LOCAL_CONTACT_SEARCH + "\" value=\""
                     + escapeHtml(safe(localSearch)) + "\">");
-            out.println("    <p><input class=\"w3-input\" type=\"text\" name=\"" + PARAM_GLOBAL_CONTACT_SEARCH
+            out.println("    <p><input class=\"form-input\" type=\"text\" name=\"" + PARAM_GLOBAL_CONTACT_SEARCH
                     + "\" value=\"" + escapeHtml(safe(globalSearch))
                     + "\" placeholder=\"Type part of name or email\"></p>");
-            out.println("    <p><button class=\"w3-button w3-blue\" type=\"submit\">Search All Contacts</button></p>");
+            out.println("    <p><button class=\"btn btn-primary\" type=\"submit\">Search All Contacts</button></p>");
             out.println("  </form>");
 
             if (globalSearch != null) {
-                out.println("  <table class=\"w3-table w3-bordered w3-striped\">");
+                out.println("  <table class=\"data-table table-bordered table-striped\">");
                 out.println(
                         "    <tr><th>Contact</th><th>Home Jurisdiction</th><th>Primary</th><th>Secondary</th><th>Not Authorized</th><th>Viewer</th></tr>");
                 Map<Integer, Jurisdiction> jurisdictionById = loadJurisdictionById(session);
@@ -2090,7 +2090,7 @@ public class AdminServlet extends HttpServlet {
 
             out.println("<hr>");
             out.println("<h3>Explicit Overrides For This Jurisdiction</h3>");
-            out.println("<table class=\"w3-table w3-bordered w3-striped\">");
+            out.println("<table class=\"data-table table-bordered table-striped\">");
             out.println(
                     "  <tr><th>Contact</th><th>Home Jurisdiction</th><th>Role</th><th>Updated</th><th>Action</th></tr>");
             SimpleDateFormat accessDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm");
@@ -2290,7 +2290,7 @@ public class AdminServlet extends HttpServlet {
                 .append("\" value=\"")
                 .append(escapeHtml(safe(globalSearch)))
                 .append("\">");
-        html.append("<button class=\"w3-button w3-tiny w3-blue\" type=\"submit\">")
+        html.append("<button class=\"btn btn-tiny btn-primary\" type=\"submit\">")
                 .append(escapeHtml(buttonLabel))
                 .append("</button>");
         html.append("</form>");
@@ -2449,40 +2449,50 @@ public class AdminServlet extends HttpServlet {
         out.println("<html>");
         out.println("  <head>");
         out.println("    <title>CLEAR - Community Led Exchange and Aggregate Reporting</title>");
-        out.println("    <link rel=\"stylesheet\" href=\"https://www.w3schools.com/w3css/4/w3.css\"/>");
+        out.println("    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+        out.println("    <link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">");
+        out.println("    <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>");
+        out.println(
+                "    <link href=\"https://fonts.googleapis.com/css?family=Open+Sans:400,700|Roboto:400,700\" rel=\"stylesheet\">");
+        out.println("    <link rel=\"stylesheet\" href=\"/clear/css/clear-brand.css\"/>");
         out.println("  </head>");
-        out.println("  <body>");
+        out.println("  <body class=\"app-body\">");
 
-        out.println("    <header class=\"w3-container w3-green\">");
-        out.println("      <div class=\"w3-bar\">");
-        out.println("        <h1>CLEAR - Community Led Exchange and Aggregate Reporting</h1> ");
-        out.println("        <a href=\"/clear/?view=data\" class=\"w3-bar-item w3-button\">Data</a> ");
-        out.println("        <a href=\"/clear/?view=map\" class=\"w3-bar-item w3-button\">Map</a> ");
-        out.println("        <a href=\"/clear/email\" class=\"w3-bar-item w3-button\">Mail</a> ");
-        out.println("        <a href=\"/clear/admin\" class=\"w3-bar-item w3-button\">Admin</a> ");
+        out.println("    <header class=\"app-header\">");
+        out.println("      <div class=\"app-header-inner\">");
+        out.println("        <a class=\"app-brand\" href=\"/clear/dashboard?view=data\">");
+        out.println("          <img class=\"app-brand-logo\" src=\"/clear/images/aira_logo.webp\" alt=\"AIRA\">");
+        out.println("          <span>CLEAR</span>");
+        out.println("        </a>");
+        out.println("        <nav class=\"app-nav\">");
+        out.println("        <a href=\"/clear/dashboard?view=data\" class=\"app-nav-item\">Data</a> ");
+        out.println("        <a href=\"/clear/dashboard?view=map\" class=\"app-nav-item\">Map</a> ");
+        out.println("        <a href=\"/clear/email\" class=\"app-nav-item\">Mail</a> ");
+        out.println("        <a href=\"/clear/admin\" class=\"app-nav-item\">Admin</a> ");
         if (sessionUser.isAdmin()) {
             out.println(
-                    "        <a href=\"/clear/admin/jurisdictions\" class=\"w3-bar-item w3-button\">Jurisdictions</a> ");
-            out.println("        <a href=\"/clear/admin/contacts\" class=\"w3-bar-item w3-button\">Contacts</a> ");
+                    "        <a href=\"/clear/admin/jurisdictions\" class=\"app-nav-item\">Jurisdictions</a> ");
+            out.println("        <a href=\"/clear/admin/contacts\" class=\"app-nav-item\">Contacts</a> ");
         }
-        out.println("        <a href=\"/clear/logout\" class=\"w3-bar-item w3-button\">Logout</a> ");
+        out.println("        <a href=\"/clear/logout\" class=\"app-nav-item\">Logout</a> ");
+        out.println("        </nav>");
         out.println("      </div>");
-        out.println("      <div class=\"w3-small\">Signed in as " + escapeHtml(sessionUser.getDisplayName())
+        out.println("      <div class=\"app-user-meta\">Signed in as " + escapeHtml(sessionUser.getDisplayName())
                 + " (" + escapeHtml(sessionUser.getEmail()) + ")"
                 + (sessionUser.isAdmin() ? " - Admin" : "") + "</div>");
         out.println("    </header>");
-        out.println("    <div class=\"w3-container\">");
+        out.println("    <main class=\"app-main\">");
     }
 
     private void printFooter(PrintWriter out) {
-        out.println("   </div>");
-        out.println("  <div class=\"w3-container w3-green\">");
+        out.println("   </main>");
+        out.println("  <footer class=\"app-footer\">");
         out.println("      <p>CLEAR " + SoftwareVersion.VERSION + " - ");
         out.println(
                 "      <a href=\"https://aira.memberclicks.net/assets/docs/Organizational_Docs/AIRA%20Privacy%20Policy%20-%20Final%202024_.pdf\" class=\"underline\">AIRA Privacy Policy</a> - ");
         out.println(
                 "      <a href=\"https://github.com/ImmRegistries/Clear\" class=\"underline\">Source Code</a></p>");
-        out.println("  </div>");
+        out.println("  </footer>");
         out.println("  </body>");
         out.println("</html>");
     }
@@ -2506,7 +2516,7 @@ public class AdminServlet extends HttpServlet {
         if (definition.inputType == InputType.CHECKBOX) {
             boolean checked = SystemSettingSupport.parseBoolean(value,
                     SystemSettingSupport.parseBoolean(definition.defaultValue, false));
-            return "<input class=\"w3-check\" type=\"checkbox\" name=\""
+            return "<input class=\"form-check\" type=\"checkbox\" name=\""
                     + escapeHtml(definition.key) + "\" value=\"true\""
                     + (checked ? " checked" : "") + ">";
         }
@@ -2518,7 +2528,7 @@ public class AdminServlet extends HttpServlet {
             htmlType = "number";
         }
 
-        return "<input class=\"w3-input\" type=\"" + htmlType + "\" name=\""
+        return "<input class=\"form-input\" type=\"" + htmlType + "\" name=\""
                 + escapeHtml(definition.key) + "\" value=\""
                 + escapeHtml(safe(value)) + "\">";
     }
