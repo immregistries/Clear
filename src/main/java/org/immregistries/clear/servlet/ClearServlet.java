@@ -8,6 +8,7 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import jakarta.servlet.ServletException;
@@ -20,6 +21,9 @@ import org.immregistries.clear.auth.SessionUser;
 import org.immregistries.clear.model.EntryForInterop;
 import org.immregistries.clear.model.Jurisdiction;
 import org.immregistries.clear.model.JurisdictionAccessRole;
+import org.immregistries.clear.service.DashboardEstimateService;
+import org.immregistries.clear.service.DashboardEstimateService.DashboardEstimateViewModel;
+import org.immregistries.clear.service.DashboardEstimateService.MonthlyEstimateRow;
 import org.immregistries.clear.service.JurisdictionAccessService;
 import org.immregistries.clear.servlet.maps.Color;
 import org.immregistries.clear.servlet.maps.MapEntityMaker;
@@ -42,6 +46,7 @@ public class ClearServlet extends HttpServlet {
     public static final String ACTION_SAVE = "Save";
 
     public static final String PARAM_MONTH = "month";
+    public static final String PARAM_YEAR = "year";
 
     public static final String PARAM_DISPLAY_TYPE = "display_type";
     public static final String DISPLAY_TYPE_UPDATES = "updates";
@@ -50,6 +55,7 @@ public class ClearServlet extends HttpServlet {
     public static Map<String, Integer> populationMap = new HashMap<String, Integer>();
 
     private final JurisdictionAccessService jurisdictionAccessService = new JurisdictionAccessService();
+    private final DashboardEstimateService dashboardEstimateService = new DashboardEstimateService();
 
     static {
         populationMap.put("AL", 5025369);
@@ -216,7 +222,18 @@ public class ClearServlet extends HttpServlet {
 
             if (view.equals(VIEW_HOME)) {
                 printHomeHeader(out, sessionUser);
-                renderHomeView(out);
+                int requestedYear = Calendar.getInstance().get(Calendar.YEAR);
+                String yearParam = req.getParameter(PARAM_YEAR);
+                if (yearParam != null && !yearParam.trim().isEmpty()) {
+                    try {
+                        requestedYear = Integer.parseInt(yearParam.trim());
+                    } catch (NumberFormatException nfe) {
+                        requestedYear = Calendar.getInstance().get(Calendar.YEAR);
+                    }
+                }
+                DashboardEstimateViewModel estimateViewModel = dashboardEstimateService.buildDashboardEstimates(session,
+                        requestedYear, populationMap);
+                renderHomeView(out, estimateViewModel);
                 printFooter(out);
                 return;
             }
@@ -649,7 +666,7 @@ public class ClearServlet extends HttpServlet {
         PageShellSupport.printAuthenticatedPageEnd(out);
     }
 
-    private void renderHomeView(PrintWriter out) {
+    private void renderHomeView(PrintWriter out, DashboardEstimateViewModel estimateViewModel) {
         out.println("<div class=\"app-section\" style=\"max-width: 800px; line-height: 1.6; color: #333;\">");
         out.println(
                 "  <h1 style=\"font-size: 2em; margin-bottom: 0.5em; color: #2c5aa0;\">Community Led Exchange and Aggregate Reporting (CLEAR)</h1>");
@@ -674,10 +691,73 @@ public class ClearServlet extends HttpServlet {
                 "    Together, we're building a picture of the real-world impact of standardized data exchange in immunization systems.");
         out.println("  </p>");
         out.println("");
+        out.println("  <div class=\"app-section\" style=\"padding-left:0;\">");
+        out.println("    <h2 style=\"margin-bottom: 0.5em;\">National Estimates</h2>");
+        out.println(
+                "    <p class=\"text-muted\" style=\"margin-top:0;\">These values are estimates derived from reported IIS/state data.</p>");
+        out.println("    <form method=\"GET\" action=\"/clear/dashboard\" style=\"margin: 0 0 16px 0;\">");
+        out.println("      <input type=\"hidden\" name=\"" + PARAM_VIEW + "\" value=\"" + VIEW_HOME + "\">");
+        out.println("      <label for=\"yearSelector\"><strong>Year</strong></label>");
+        out.println(
+                "      <select id=\"yearSelector\" class=\"form-select\" style=\"max-width: 180px;\" name=\""
+                        + PARAM_YEAR + "\" onchange=\"this.form.submit()\">");
+        for (Integer yearOption : estimateViewModel.getAvailableYears()) {
+            String selected = yearOption.intValue() == estimateViewModel.getSelectedYear() ? " selected" : "";
+            out.println("        <option value=\"" + yearOption + "\"" + selected + ">" + yearOption + "</option>");
+        }
+        out.println("      </select>");
+        out.println("    </form>");
+
+        out.println("    <h3 style=\"margin-bottom: 8px;\">Estimated National Updates</h3>");
+        printEstimateTable(out, estimateViewModel.getUpdateRows());
+
+        out.println("    <h3 style=\"margin: 20px 0 8px;\">Estimated National Queries</h3>");
+        printEstimateTable(out, estimateViewModel.getQueryRows());
+        out.println("  </div>");
+
         out.println("  <p style=\"margin-top: 3em; padding-top: 2em; border-top: 1px solid #ddd;\">");
         out.println("    <a href=\"/clear/logout\" style=\"color: #2c5aa0; text-decoration: none;\">Sign out</a>");
         out.println("  </p>");
         out.println("</div>");
+    }
+
+    private void printEstimateTable(PrintWriter out, List<MonthlyEstimateRow> rows) {
+        out.println("    <table class=\"data-table table-striped\">");
+        out.println("      <tr>");
+        out.println("        <th>Month</th>");
+        out.println("        <th>Conservative Estimate</th>");
+        out.println("        <th>Central Estimate</th>");
+        out.println("        <th>High Estimate</th>");
+        out.println("      </tr>");
+
+        if (rows == null || rows.isEmpty()) {
+            out.println("      <tr>");
+            out.println("        <td colspan=\"4\" class=\"text-muted\">Not enough data</td>");
+            out.println("      </tr>");
+        } else {
+            for (MonthlyEstimateRow row : rows) {
+                out.println("      <tr>");
+                out.println("        <td>" + row.getMonthLabel() + "</td>");
+                if (row.isEnoughData()) {
+                    out.println("        <td>" + formatEstimateNumber(row.getConservativeEstimate()) + "</td>");
+                    out.println("        <td>" + formatEstimateNumber(row.getCentralEstimate()) + "</td>");
+                    out.println("        <td>" + formatEstimateNumber(row.getHighEstimate()) + "</td>");
+                } else {
+                    out.println("        <td class=\"text-muted\">Not enough data</td>");
+                    out.println("        <td class=\"text-muted\">Not enough data</td>");
+                    out.println("        <td class=\"text-muted\">Not enough data</td>");
+                }
+                out.println("      </tr>");
+            }
+        }
+        out.println("    </table>");
+    }
+
+    private String formatEstimateNumber(Long value) {
+        if (value == null) {
+            return "Not enough data";
+        }
+        return String.format(Locale.US, "%,d", value.longValue());
     }
 
 }
