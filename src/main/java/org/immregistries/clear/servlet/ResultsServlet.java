@@ -104,17 +104,17 @@ public class ResultsServlet extends HttpServlet {
                 case "updatesPerCapita":
                     out.print("<td>" + formatInteger(row.population) + "</td><td>" + formatInteger(row.updates)
                             + "</td><td>"
-                            + String.format("%.2f", row.updatesPerCapita) + "</td>");
+                            + String.format("%,d", Math.round(row.updatesPerCapita)) + "</td>");
                     break;
                 case "queriesPerCapita":
                     out.print("<td>" + formatInteger(row.population) + "</td><td>" + formatInteger(row.queries)
                             + "</td><td>"
-                            + String.format("%.2f", row.queriesPerCapita) + "</td>");
+                            + String.format("%,d", Math.round(row.queriesPerCapita)) + "</td>");
                     break;
                 case "queryUpdateRatio":
                     out.print(
                             "<td>" + formatInteger(row.updates) + "</td><td>" + formatInteger(row.queries) + "</td><td>"
-                                    + String.format("%.2f", row.queryUpdateRatio) + "</td>");
+                                    + String.format("%,d", Math.round(row.queryUpdateRatio)) + "</td>");
                     break;
             }
             out.println("</tr>");
