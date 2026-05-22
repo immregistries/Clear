@@ -156,7 +156,12 @@ public class DashboardEstimateService {
             if (monthData == null) {
                 monthData = Collections.emptyMap();
             }
-            int reportingCount = monthData.size();
+            int reportingCount = 0;
+            for (JurisdictionMonthlyCounts counts : monthData.values()) {
+                if (counts.updates > 0 || counts.queries > 0) {
+                    reportingCount++;
+                }
+            }
 
             MetricEstimate updateEstimate = calculateEstimate(monthData, populationMap, totalNationalPopulation, true);
             MetricEstimate queryEstimate = calculateEstimate(monthData, populationMap, totalNationalPopulation, false);
@@ -187,6 +192,9 @@ public class DashboardEstimateService {
             }
 
             int count = useUpdates ? counts.updates : counts.queries;
+            if (count <= 0) {
+                continue;
+            }
             double rate = (double) count / (double) population.intValue();
             rates.add(Double.valueOf(rate));
             totalReportedCount += count;
