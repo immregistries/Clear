@@ -386,7 +386,7 @@ public class AdminServlet extends HttpServlet {
         Transaction tx = null;
         try {
             Map<String, Jurisdiction> jurisdictionByMapLink = loadJurisdictionByMapLink(session);
-            ParseResult parseResult = parseUploadRows(csvPart, jurisdictionByMapLink);
+            ParseResult parseResult = parseUploadRows(csvPart, jurisdictionByMapLink, sessionUser.getEmail());
             if (!parseResult.errors.isEmpty()) {
                 throw new IllegalArgumentException("CSV validation failed: " + String.join(" ", parseResult.errors));
             }
@@ -401,7 +401,7 @@ public class AdminServlet extends HttpServlet {
                 Contact contact = contactByEmail.get(row.contactEmailKey);
                 if (contact == null) {
                     contact = createContact(session, row.contactEmail,
-                            row.contactFirstName, row.contactLastName, row.jurisdiction);
+                            row.contactFirstName, row.contactLastName, row.jurisdiction, sessionUser);
                     contactByEmail.put(row.contactEmailKey, contact);
                     createdContactCount++;
                 }
@@ -521,7 +521,7 @@ public class AdminServlet extends HttpServlet {
     }
 
     private ParseResult parseUploadRows(Part csvPart,
-            Map<String, Jurisdiction> jurisdictionByMapLink) throws IOException {
+            Map<String, Jurisdiction> jurisdictionByMapLink, String defaultContactEmail) throws IOException {
         ParseResult parseResult = new ParseResult();
         boolean headerProcessed = false;
 
@@ -563,6 +563,11 @@ public class AdminServlet extends HttpServlet {
                 // or no numeric values to report.
                 if (reportingPeriodText == null || (updateCountText == null && queryCountText == null)) {
                     continue;
+                }
+
+                // Use default email if contact email is not provided
+                if (contactEmail == null) {
+                    contactEmail = defaultContactEmail;
                 }
 
                 if (reportingPeriodText == null || updateCountText == null || queryCountText == null
@@ -671,11 +676,14 @@ public class AdminServlet extends HttpServlet {
     }
 
     private Contact createContact(Session session, String emailAddress,
-            String firstName, String lastName, Jurisdiction jurisdiction) {
+            String firstName, String lastName, Jurisdiction jurisdiction, SessionUser createdBy) {
         Contact contact = new Contact();
         contact.setEmailAddress(emailAddress);
-        contact.setNameFirst(firstName == null ? "" : firstName);
-        contact.setNameLast(lastName == null ? "" : lastName);
+        // Use sessionUser's name as fallback if CSV fields are empty
+        contact.setNameFirst(
+                firstName != null ? firstName : (createdBy.getFirstName() != null ? createdBy.getFirstName() : ""));
+        contact.setNameLast(
+                lastName != null ? lastName : (createdBy.getLastName() != null ? createdBy.getLastName() : ""));
         contact.setDateCreated(new Date());
         contact.setDateAccess(new Date());
         contact.setJurisdictionId(jurisdiction.getJurisdictionId());
@@ -1291,7 +1299,7 @@ public class AdminServlet extends HttpServlet {
             }
 
             tx = session.beginTransaction();
-            Contact contact = createContact(session, email, firstName, lastName, jurisdiction);
+            Contact contact = createContact(session, email, firstName, lastName, jurisdiction, sessionUser);
             tx.commit();
             renderContactAdminPage(resp, sessionUser, "Contact created.", false, searchText,
                     Integer.valueOf(contact.getContactId()));
@@ -1395,7 +1403,7 @@ public class AdminServlet extends HttpServlet {
 
                 Contact contact = contactByEmail.get(row.emailKey);
                 if (contact == null) {
-                    contact = createContact(session, row.email, row.firstName, row.lastName, jurisdiction);
+                    contact = createContact(session, row.email, row.firstName, row.lastName, jurisdiction, sessionUser);
                     contactByEmail.put(row.emailKey, contact);
                     createdContacts++;
                 } else {

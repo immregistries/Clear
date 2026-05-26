@@ -3,11 +3,13 @@ package org.immregistries.clear.auth;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Date;
 import java.util.List;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import org.hibernate.Session;
+import org.hibernate.Transaction;
 import org.hibernate.query.Query;
 import org.immregistries.interophub.client.HubClientConfig;
 import org.immregistries.interophub.client.HubExchangeResult;
@@ -177,7 +179,13 @@ public final class ClearAuthSessionSupport {
             sessionUser.setDisplayName(displayName);
 
             if (email.endsWith("@immregistries.org")) {
-                LOG.info("User authenticated as admin. email={} displayName={}", email, displayName);
+                Contact contact = upsertAdminContact(email, firstName, lastName, fallbackName, displayName);
+                if (contact != null) {
+                    sessionUser.setContactId(contact.getContactId());
+                    sessionUser.setJurisdictionId(contact.getJurisdictionId());
+                }
+                LOG.info("User authenticated as admin. email={} displayName={} contactId={}", email, displayName,
+                        contact == null ? null : Integer.valueOf(contact.getContactId()));
                 sessionUser.setAllowed(true);
                 sessionUser.setAdmin(true);
                 return sessionUser;
@@ -224,6 +232,50 @@ public final class ClearAuthSessionSupport {
             return contacts.isEmpty() ? null : contacts.get(0);
         } catch (Exception e) {
             LOG.warn("Unable to query Contact by email", e);
+            return null;
+        } finally {
+            if (session != null) {
+                session.close();
+            }
+        }
+    }
+
+    private static Contact upsertAdminContact(String email, String firstName, String lastName,
+            String fallbackName, String displayName) {
+        Session session = null;
+        Transaction transaction = null;
+        try {
+            session = HibernateUtil.getSessionFactory().openSession();
+            transaction = session.beginTransaction();
+
+            Query<Contact> query = session.createQuery(
+                    "FROM Contact WHERE lower(emailAddress) = :email", Contact.class);
+            query.setParameter("email", email);
+            query.setMaxResults(1);
+            List<Contact> contacts = query.list();
+            Contact contact = contacts.isEmpty() ? null : contacts.get(0);
+            if (contact == null) {
+                contact = new Contact();
+                contact.setEmailAddress(email);
+                contact.setJurisdictionId(0);
+                contact.setDateCreated(new Date());
+            }
+
+            String resolvedFirstName = firstNonBlank(firstName, contact.getNameFirst(), fallbackName, displayName,
+                    email);
+            String resolvedLastName = firstNonBlank(lastName, contact.getNameLast());
+            contact.setNameFirst(resolvedFirstName == null ? "" : resolvedFirstName);
+            contact.setNameLast(resolvedLastName == null ? "" : resolvedLastName);
+            contact.setEmailAddress(email);
+            contact.setDateAccess(new Date());
+            session.saveOrUpdate(contact);
+            transaction.commit();
+            return contact;
+        } catch (Exception e) {
+            if (transaction != null && transaction.isActive()) {
+                transaction.rollback();
+            }
+            LOG.warn("Unable to provision admin Contact record for email={}", email, e);
             return null;
         } finally {
             if (session != null) {
