@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.format.TextStyle;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
@@ -24,6 +25,7 @@ import org.immregistries.clear.model.JurisdictionAccessRole;
 import org.immregistries.clear.service.DashboardEstimateService;
 import org.immregistries.clear.service.DashboardEstimateService.DashboardEstimateViewModel;
 import org.immregistries.clear.service.DashboardEstimateService.MonthlyEstimateRow;
+import org.immregistries.clear.service.DashboardEstimateService.YearlyEstimate;
 import org.immregistries.clear.service.JurisdictionAccessService;
 import org.immregistries.clear.servlet.maps.Color;
 import org.immregistries.clear.servlet.maps.MapEntityMaker;
@@ -695,6 +697,8 @@ public class ClearServlet extends HttpServlet {
         out.println("    <h2 style=\"margin-bottom: 0.5em;\">National Estimates</h2>");
         out.println(
                 "    <p class=\"text-muted\" style=\"margin-top:0;\">These values are estimates derived from reported IIS/state data.</p>");
+        printYearlyEstimateSection(out, estimateViewModel.getUpdateYearlyEstimate(),
+                estimateViewModel.getQueryYearlyEstimate());
         out.println("    <form method=\"GET\" action=\"/clear/dashboard\" style=\"margin: 0 0 16px 0;\">");
         out.println("      <input type=\"hidden\" name=\"" + PARAM_VIEW + "\" value=\"" + VIEW_HOME + "\">");
         out.println("      <label for=\"yearSelector\"><strong>Year</strong></label>");
@@ -773,7 +777,107 @@ public class ClearServlet extends HttpServlet {
         if (value == null) {
             return "Not enough data";
         }
-        return String.format(Locale.US, "%,d", value.longValue());
+        return formatHumanReadableLargeNumber(value.longValue());
+    }
+
+    private void printYearlyEstimateSection(PrintWriter out, YearlyEstimate updateYearly,
+            YearlyEstimate queryYearly) {
+        out.println(
+                "    <div style=\"background: #f0f4fa; border-left: 4px solid #2c5aa0; padding: 16px 20px; margin-bottom: 24px; border-radius: 4px;\">");
+        out.println(
+                "      <h3 style=\"margin-top: 0; margin-bottom: 16px; color: #2c5aa0;\">Rolling Yearly Estimates</h3>");
+
+        out.println("      <div style=\"margin-bottom: 14px;\">");
+        out.println(
+                "        <div style=\"font-weight: bold; margin-bottom: 4px;\">Estimated National HL7 Updates Per Year</div>");
+        if (updateYearly != null && updateYearly.isHasEnoughData()) {
+            out.println("        <div style=\"font-size: 1.15em;\">"
+                    + formatEstimateRange(updateYearly.getLowEstimateAnnual(),
+                            updateYearly.getHighEstimateAnnual(),
+                            updateYearly.getOperationalEstimateAnnual(), "updates")
+                    + "</div>");
+        } else {
+            out.println("        <span class=\"text-muted\">Not enough data</span>");
+        }
+        out.println("      </div>");
+
+        out.println("      <div style=\"margin-bottom: 14px;\">");
+        out.println(
+                "        <div style=\"font-weight: bold; margin-bottom: 4px;\">Estimated National HL7 Queries Per Year</div>");
+        if (queryYearly != null && queryYearly.isHasEnoughData()) {
+            out.println("        <div style=\"font-size: 1.15em;\">"
+                    + formatEstimateRange(queryYearly.getLowEstimateAnnual(),
+                            queryYearly.getHighEstimateAnnual(),
+                            queryYearly.getOperationalEstimateAnnual(), "queries")
+                    + "</div>");
+        } else {
+            out.println("        <span class=\"text-muted\">Not enough data</span>");
+        }
+        out.println("      </div>");
+
+        YearlyEstimate ref = updateYearly != null ? updateYearly : queryYearly;
+        if (ref != null) {
+            String startLabel = ref.getReportingWindowStart().getMonth()
+                    .getDisplayName(TextStyle.FULL, Locale.US)
+                    + " " + ref.getReportingWindowStart().getYear();
+            String endLabel = ref.getReportingWindowEnd().getMonth()
+                    .getDisplayName(TextStyle.FULL, Locale.US)
+                    + " " + ref.getReportingWindowEnd().getYear();
+            out.println("      <p class=\"text-muted\" style=\"margin-bottom: 0; font-size: 0.9em;\">Reporting Window: "
+                    + startLabel + " &ndash; " + endLabel + "</p>");
+        }
+        out.println("    </div>");
+    }
+
+    private String formatEstimateRange(Long low, Long high, Long operational, String unitLabel) {
+        if (low == null || high == null) {
+            return "<span class=\"text-muted\">Not enough data</span>";
+        }
+        boolean isBillion = high.longValue() >= 1_000_000_000L;
+        double divisor = isBillion ? 1_000_000_000.0 : 1_000_000.0;
+        String scale = isBillion ? "billion" : "million";
+
+        String lowStr = formatScaled(low.longValue(), divisor);
+        String highStr = formatScaled(high.longValue(), divisor);
+        String rangeStr = lowStr + "&ndash;" + highStr + " " + scale + " " + unitLabel + "/year";
+
+        double spread = high.longValue() > 0
+                ? (double) (high.longValue() - low.longValue()) / (double) high.longValue()
+                : 0.0;
+        if (spread <= 0.15 || operational == null) {
+            return rangeStr;
+        }
+        String operationalStr = formatHumanReadableLargeNumber(operational.longValue());
+        return rangeStr + "<br><small class=\"text-muted\">Operational estimate: "
+                + operationalStr + "/year</small>";
+    }
+
+    private static String formatScaled(long value, double divisor) {
+        String s = String.format(Locale.US, "%.1f", (double) value / divisor);
+        if (s.endsWith(".0")) {
+            s = s.substring(0, s.length() - 2);
+        }
+        return s;
+    }
+
+    private static String formatHumanReadableLargeNumber(long value) {
+        if (value >= 1_000_000_000L) {
+            String s = String.format(Locale.US, "%.1f", (double) value / 1_000_000_000.0);
+            if (s.endsWith(".0")) {
+                s = s.substring(0, s.length() - 2);
+            }
+            return s + " billion";
+        } else if (value >= 1_000_000L) {
+            String s = String.format(Locale.US, "%.1f", (double) value / 1_000_000.0);
+            if (s.endsWith(".0")) {
+                s = s.substring(0, s.length() - 2);
+            }
+            return s + " million";
+        } else if (value >= 1_000L) {
+            return String.format(Locale.US, "%d thousand", value / 1_000L);
+        } else {
+            return String.format(Locale.US, "%,d", value);
+        }
     }
 
 }

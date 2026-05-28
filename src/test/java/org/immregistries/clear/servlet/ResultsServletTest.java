@@ -1,6 +1,7 @@
 package org.immregistries.clear.servlet;
 
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -48,8 +49,18 @@ public class ResultsServletTest {
         out.flush();
 
         String html = buffer.toString();
-        assertTrue(html.contains("<td>1</td><td>TX ImmTrac</td><td>1,503,355</td>"));
+        assertTrue(html.contains("<td>1</td><td>TX ImmTrac</td><td>1.5 million</td>"));
         assertTrue(html.contains("<td>2</td><td>AZ ASIIS</td><td>75</td>"));
+    }
+
+    @Test
+    public void shouldFormatThousandsInHumanReadableNumbers() throws Exception {
+        Method method = ResultsServlet.class.getDeclaredMethod("formatHumanReadableLargeNumber", long.class);
+        method.setAccessible(true);
+
+        assertEquals("339 thousand", method.invoke(null, 339108L));
+        assertEquals("1.5 million", method.invoke(null, 1503355L));
+        assertEquals("42", method.invoke(null, 42L));
     }
 
     private static Jurisdiction jurisdiction(String mapLink, String displayLabel) {

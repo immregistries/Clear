@@ -21,7 +21,27 @@ import java.util.*;
 @WebServlet(name = "ResultsServlet", urlPatterns = { "/results" })
 public class ResultsServlet extends HttpServlet {
     private static String formatInteger(int value) {
-        return String.format(Locale.US, "%,d", value);
+        return formatHumanReadableLargeNumber(value);
+    }
+
+    private static String formatHumanReadableLargeNumber(long value) {
+        if (value >= 1_000_000_000L) {
+            String s = String.format(Locale.US, "%.1f", (double) value / 1_000_000_000.0);
+            if (s.endsWith(".0")) {
+                s = s.substring(0, s.length() - 2);
+            }
+            return s + " billion";
+        } else if (value >= 1_000_000L) {
+            String s = String.format(Locale.US, "%.1f", (double) value / 1_000_000.0);
+            if (s.endsWith(".0")) {
+                s = s.substring(0, s.length() - 2);
+            }
+            return s + " million";
+        } else if (value >= 1_000L) {
+            return String.format(Locale.US, "%d thousand", value / 1_000L);
+        } else {
+            return String.format(Locale.US, "%,d", value);
+        }
     }
 
     // Helper for ranking
