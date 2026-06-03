@@ -250,7 +250,8 @@ public class EntryServlet extends ClearServlet {
         Calendar now = Calendar.getInstance();
         int currentMonth = now.get(Calendar.MONTH);
 
-        out.println("<div class=\"app-section\" style=\"max-width:560px;padding-left:0;\">");
+        out.println("<div class=\"enter-layout\">");
+        out.println("<div class=\"app-section enter-form-column\" style=\"padding-left:0;\">");
         out.println("<form action=\"/clear/enter\" method=\"post\">");
         out.println("  <input type=\"hidden\" name=\"" + PARAM_JURISDICTION + "\" value=\""
                 + selectedJurisdictionMapLink + "\">");
@@ -295,6 +296,39 @@ public class EntryServlet extends ClearServlet {
         out.println("  <input class=\"btn btn-primary\" type=\"submit\" name=\"" + PARAM_ACTION
                 + "\" value=\"" + ACTION_SAVE + "\">");
         out.println("</form>");
+        out.println("</div>");
+
+        out.println("<aside class=\"app-section enter-context-panel\">");
+        out.println("  <h2>Community Led Exchange and Aggregate Reporting (CLEAR)</h2>");
+        out.println("  <p>");
+        out.println(
+                "    CLEAR helps us understand how immunization information systems (IIS) support real-time HL7 interoperability across the nation.");
+        out.println(
+                "    We're asking IIS to share the volume of HL7 v2 updates and queries they're processing each month.");
+        out.println("  </p>");
+        out.println("  <p>");
+        out.println(
+                "    Your data is valuable and will be shared with other IIS participants. You'll be able to see what others are reporting.");
+        out.println(
+                "    Externally, we'll publish only an aggregate national estimate to help communicate the vital services IIS are providing");
+        out.println("    and demonstrate that interoperability is working nationwide.");
+        out.println("  </p>");
+        out.println("  <p>");
+        out.println(
+                "    Together, we're building a picture of the real-world impact of standardized data exchange in immunization systems.");
+        out.println("  </p>");
+
+        out.println("  <h3>What to Report</h3>");
+        out.println(
+                "  <p>Please report the total number of HL7 v2 messages received by your IIS during each month.</p>");
+        out.println(
+                "  <p><strong>Updates:</strong> Count HL7 v2 update messages received by the IIS, such as VXU submissions.</p>");
+        out.println(
+                "  <p><strong>Queries:</strong> Count HL7 v2 query transactions received by the IIS, such as QBP requests.</p>");
+        out.println(
+                "  <p>Report the totals as they were recorded by your IIS operational systems. These values will be used to estimate the volume of HL7 interoperability activity supported by IIS nationwide.</p>");
+        out.println("  <p>If you have questions about what counts, please contact AIRA.</p>");
+        out.println("</aside>");
         out.println("</div>");
 
         out.println("<script>");

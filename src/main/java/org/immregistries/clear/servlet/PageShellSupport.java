@@ -83,7 +83,9 @@ public final class PageShellSupport {
         navItems.add(nav(enterHref, "Enter Data"));
         navItems.add(nav("/clear/dashboard?view=map", "Map"));
         navItems.add(nav("/clear/results", "Results"));
-        navItems.add(nav("/clear/admin", "Admin"));
+        if (sessionUser != null && sessionUser.isAdmin()) {
+            navItems.add(nav("/clear/admin", "Admin"));
+        }
 
         printPageStart(out, title, homeHref, sessionUser, navItems);
     }

@@ -334,6 +334,46 @@ table td {
 	flex: 1;
 }
 
+.enter-layout {
+	display: flex;
+	align-items: flex-start;
+	gap: 22px;
+	margin-top: 8px;
+}
+
+.enter-form-column {
+	flex: 0 1 560px;
+	max-width: 560px;
+}
+
+.enter-context-panel {
+	flex: 1 1 380px;
+	max-width: 540px;
+	padding: 16px;
+	border: 1px solid var(--brand-border);
+	border-radius: 6px;
+	background: #ffffff;
+	line-height: 1.6;
+	color: #2a3d46;
+}
+
+.enter-context-panel h2 {
+	margin: 0 0 10px;
+	font-size: 1.45rem;
+	line-height: 1.25;
+	color: #2c5aa0;
+}
+
+.enter-context-panel h3 {
+	margin: 16px 0 8px;
+	font-size: 1.1rem;
+	color: var(--brand-ink);
+}
+
+.enter-context-panel p {
+	margin: 0 0 10px;
+}
+
 @media (max-width: 900px) {
 	.app-main {
 		padding: 14px;
@@ -346,5 +386,16 @@ table td {
 	.app-nav-item {
 		padding: 7px 10px;
 		font-size: 0.88rem;
+	}
+
+	.enter-layout {
+		flex-direction: column;
+		gap: 14px;
+	}
+
+	.enter-form-column,
+	.enter-context-panel {
+		max-width: 100%;
+		width: 100%;
 	}
 }

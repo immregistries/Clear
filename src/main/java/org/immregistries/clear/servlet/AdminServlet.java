@@ -18,6 +18,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.HashSet;
 import java.util.Set;
+import java.time.LocalDate;
+import java.time.YearMonth;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.MultipartConfig;
@@ -43,6 +45,8 @@ import org.immregistries.clear.service.JurisdictionAdminSupport.BulkJurisdiction
 import org.immregistries.clear.service.JurisdictionAdminSupport.JurisdictionEditRow;
 import org.immregistries.clear.service.JurisdictionAdminSupport.JurisdictionEditValidationResult;
 import org.immregistries.clear.service.EmailService;
+import org.immregistries.clear.service.ReportingReminderService;
+import org.immregistries.clear.service.ReportingReminderService.ReportingStatusRow;
 import org.immregistries.clear.utils.HibernateUtil;
 import org.immregistries.clear.utils.SystemSettingSupport;
 
@@ -68,6 +72,10 @@ public class AdminServlet extends HttpServlet {
     private static final String ACTION_UPLOAD_CONTACTS = "uploadContacts";
     private static final String ACTION_SAVE_CONTACT_ACCESS = "saveContactAccess";
     private static final String ACTION_DELETE_CONTACT_ACCESS = "deleteContactAccess";
+    private static final String ACTION_VIEW_REPORTING_STATUS = "reportingStatus";
+    private static final String ACTION_PREVIEW_REPORTING_REMINDERS = "previewReportingReminders";
+    private static final String ACTION_SEND_SELECTED_REMINDERS = "sendSelectedReminders";
+    private static final String ACTION_SEND_CLEAR_DATA_REQUEST_EMAIL = "sendClearDataRequestEmail";
     private static final String PARAM_ENTRY_FOR_INTEROP_FILE = "entryForInteropFile";
     private static final String PARAM_CONTACT_FILE = "contactFile";
     private static final String PARAM_ACCESS_OVERRIDE_ID = "accessOverrideId";
@@ -83,6 +91,7 @@ public class AdminServlet extends HttpServlet {
     private static final String PARAM_CONTACT_ACCESS_ID = "contactAccessId";
     private static final String PARAM_CONTACT_ACCESS_JURISDICTION_ID = "contactAccessJurisdictionId";
     private static final String PARAM_CONTACT_ACCESS_ROLE = "contactAccessRole";
+    private static final String PARAM_REMINDER_JURISDICTION_ID = "reminderJurisdictionId";
     private static final String PARAM_JURISDICTION_ID = "jurisdictionId";
     private static final String PARAM_TARGET_JURISDICTION_ID = "targetJurisdictionId";
     private static final String PARAM_TARGET_CONTACT_ID = "targetContactId";
@@ -121,6 +130,7 @@ public class AdminServlet extends HttpServlet {
 
     private final EmailService emailService = new EmailService();
     private final JurisdictionAdminSupport jurisdictionAdminSupport = new JurisdictionAdminSupport();
+    private final ReportingReminderService reportingReminderService = new ReportingReminderService();
 
     private static final SettingDefinition[] SETTING_DEFINITIONS = new SettingDefinition[] {
             new SettingDefinition(
@@ -215,6 +225,10 @@ public class AdminServlet extends HttpServlet {
             renderContactAdminPage(req, resp, sessionUser, null, false);
             return;
         }
+        if ("/reporting-status".equals(pathInfo)) {
+            renderReportingStatusPage(req, resp, sessionUser, null, false, null);
+            return;
+        }
 
         String action = normalize(req.getParameter(PARAM_ACTION));
         if (ACTION_DOWNLOAD_ENTRY_FOR_INTEROP.equals(action)) {
@@ -227,6 +241,10 @@ public class AdminServlet extends HttpServlet {
         }
         if (ACTION_VIEW_CONTACT_ADMIN.equals(action)) {
             renderContactAdminPage(req, resp, sessionUser, null, false);
+            return;
+        }
+        if (ACTION_VIEW_REPORTING_STATUS.equals(action)) {
+            renderReportingStatusPage(req, resp, sessionUser, null, false, null);
             return;
         }
 
@@ -300,6 +318,18 @@ public class AdminServlet extends HttpServlet {
         }
         if (ACTION_DELETE_CONTACT_ACCESS.equals(action)) {
             handleDeleteContactAccess(req, resp, sessionUser);
+            return;
+        }
+        if (ACTION_PREVIEW_REPORTING_REMINDERS.equals(action)) {
+            handleReportingReminderAction(req, resp, sessionUser, true);
+            return;
+        }
+        if (ACTION_SEND_SELECTED_REMINDERS.equals(action)) {
+            handleReportingReminderAction(req, resp, sessionUser, false);
+            return;
+        }
+        if (ACTION_SEND_CLEAR_DATA_REQUEST_EMAIL.equals(action)) {
+            handleSendClearDataRequestEmail(req, resp, sessionUser);
             return;
         }
 
@@ -871,6 +901,8 @@ public class AdminServlet extends HttpServlet {
             out.println(
                     "<p><a class=\"btn btn-primary\" href=\"/clear/admin/jurisdictions\">Manage Jurisdictions</a></p>");
             out.println("<p><a class=\"btn btn-primary\" href=\"/clear/admin/contacts\">Manage Contacts</a></p>");
+            out.println(
+                    "<p><a class=\"btn btn-primary\" href=\"/clear/admin/reporting-status\">CLEAR Reporting Status</a></p>");
             out.println("<h3>System Settings</h3>");
             out.println("<p>Manage system-level configuration values.</p>");
 
@@ -1659,6 +1691,17 @@ public class AdminServlet extends HttpServlet {
                 out.println("  <p><button class=\"btn btn-primary\" type=\"submit\">Save Contact</button></p>");
                 out.println("</form>");
 
+                out.println("<form method=\"POST\" style=\"margin: 0 0 16px;\">");
+                out.println("  <input type=\"hidden\" name=\"" + PARAM_ACTION + "\" value=\""
+                        + ACTION_SEND_CLEAR_DATA_REQUEST_EMAIL + "\">");
+                out.println("  <input type=\"hidden\" name=\"" + PARAM_CONTACT_ID + "\" value=\""
+                        + selectedContact.getContactId() + "\">");
+                out.println("  <input type=\"hidden\" name=\"" + PARAM_CONTACT_SEARCH + "\" value=\""
+                        + escapeHtml(safe(searchText)) + "\">");
+                out.println(
+                        "  <button class=\"btn btn-primary\" type=\"submit\">Send CLEAR Data Request Email</button>");
+                out.println("</form>");
+
                 out.println("<h3>Contact Jurisdiction Access</h3>");
                 out.println(
                         "<form method=\"POST\" class=\"app-section\" style=\"max-width: 720px; padding-left: 0;\">");
@@ -1723,6 +1766,230 @@ public class AdminServlet extends HttpServlet {
             session.close();
             out.close();
         }
+    }
+
+    private void renderReportingStatusPage(HttpServletRequest req, HttpServletResponse resp,
+            SessionUser sessionUser, String message, boolean error, Set<Integer> selectedJurisdictionIds)
+            throws IOException {
+        Map<String, String> values = loadSettingValues();
+        Session session = HibernateUtil.getSessionFactory().openSession();
+        try {
+            YearMonth targetMonth = reportingReminderService.determineTargetMonth(LocalDate.now());
+            List<ReportingStatusRow> rows = reportingReminderService.loadReportingStatusRows(session, targetMonth);
+            Set<Integer> selectedIds = selectedJurisdictionIds == null
+                    ? null
+                    : new HashSet<Integer>(selectedJurisdictionIds);
+
+            resp.setContentType("text/html");
+            PrintWriter out = new PrintWriter(resp.getOutputStream());
+            printHeader(out, sessionUser);
+            out.println("<h2>CLEAR Reporting Status</h2>");
+            out.println("<p><a class=\"btn btn\" href=\"/clear/admin\">Back to Admin</a></p>");
+            out.println("<p><strong>Target reporting month:</strong> "
+                    + escapeHtml(reportingReminderService.formatMonth(targetMonth)) + "</p>");
+            if (message != null && !message.isEmpty()) {
+                String panelClass = error ? "alert-error" : "alert-success";
+                out.println("<div class=\"alert-panel " + panelClass + "\">" + escapeHtml(message)
+                        + "</div>");
+            }
+
+            out.println("<form method=\"POST\" class=\"app-section\">");
+            out.println("  <table class=\"data-table table-bordered table-striped\">");
+            out.println(
+                    "    <tr><th>Jurisdiction</th><th>Last Reported Month</th><th>Last Reporter</th><th>Last Reporter Email</th><th>Status</th><th>Send Reminder</th></tr>");
+            for (ReportingStatusRow row : rows) {
+                Integer jurisdictionId = Integer.valueOf(row.getJurisdiction().getJurisdictionId());
+                boolean checked = selectedIds == null
+                        ? row.isReminderDefaultSelected()
+                        : selectedIds.contains(jurisdictionId);
+                out.println("    <tr>");
+                out.println("      <td>" + escapeHtml(safe(row.getJurisdiction().getDisplayLabel())) + "</td>");
+                out.println("      <td>" + escapeHtml(reportingReminderService.formatLastReportedMonth(
+                        row.getLastReportedMonth())) + "</td>");
+                out.println(
+                        "      <td>" + escapeHtml(reportingReminderService.formatReporterLabel(row.getLastReporter()))
+                                + "</td>");
+                out.println("      <td>" + escapeHtml(safe(row.getLastReporterEmail())) + "</td>");
+                out.println("      <td>" + escapeHtml(reportingReminderService.formatStatusLabel(
+                        row.getReportingStatus())) + "</td>");
+                out.println("      <td><label><input class=\"form-check\" type=\"checkbox\" name=\""
+                        + PARAM_REMINDER_JURISDICTION_ID + "\" value=\"" + jurisdictionId + "\""
+                        + (checked ? " checked" : "") + "> Send</label></td>");
+                out.println("    </tr>");
+            }
+            out.println("  </table>");
+            out.println("  <p>");
+            out.println("    <button class=\"btn btn-primary\" type=\"submit\" name=\"" + PARAM_ACTION
+                    + "\" value=\"" + ACTION_PREVIEW_REPORTING_REMINDERS + "\">Preview Emails</button>");
+            out.println("    <button class=\"btn btn-primary\" type=\"submit\" name=\"" + PARAM_ACTION
+                    + "\" value=\"" + ACTION_SEND_SELECTED_REMINDERS + "\">Send Selected Reminders</button>");
+            out.println("  </p>");
+            out.println("</form>");
+
+            if (selectedIds != null) {
+                List<ReportingStatusRow> selectedRows = new ArrayList<ReportingStatusRow>();
+                for (ReportingStatusRow row : rows) {
+                    if (selectedIds.contains(Integer.valueOf(row.getJurisdiction().getJurisdictionId()))) {
+                        selectedRows.add(row);
+                    }
+                }
+
+                out.println("<hr>");
+                out.println("<h3>Preview Emails</h3>");
+                if (selectedRows.isEmpty()) {
+                    out.println("<p>No reminder recipients were selected.</p>");
+                } else {
+                    out.println("<table class=\"data-table table-bordered table-striped\">");
+                    out.println(
+                            "  <tr><th>Jurisdiction</th><th>Recipient Email</th><th>Target Reporting Month</th><th>Subject</th><th>Body</th></tr>");
+                    for (ReportingStatusRow row : selectedRows) {
+                        String enterUrl = reportingReminderService.buildEnterUrl(values.get(KEY_CLEAR_EXTERNAL_URL),
+                                targetMonth, row.getJurisdiction().getMapLink());
+                        String subject = reportingReminderService.buildReminderSubject(targetMonth);
+                        String body = reportingReminderService.buildReminderBody(
+                                row.getLastReporter() == null ? null : row.getLastReporter().getNameFirst(),
+                                targetMonth, enterUrl);
+                        out.println("  <tr>");
+                        out.println("    <td>" + escapeHtml(safe(row.getJurisdiction().getDisplayLabel())) + "</td>");
+                        out.println("    <td>" + escapeHtml(safe(row.getLastReporterEmail())) + "</td>");
+                        out.println(
+                                "    <td>" + escapeHtml(reportingReminderService.formatMonth(targetMonth)) + "</td>");
+                        out.println("    <td>" + escapeHtml(subject) + "</td>");
+                        out.println("    <td><pre style=\"white-space: pre-wrap; margin: 0;\">"
+                                + escapeHtml(body) + "</pre></td>");
+                        out.println("  </tr>");
+                    }
+                    out.println("</table>");
+                    out.println(
+                            "<p>Adjust the checkboxes above if any recipients need to be changed before sending.</p>");
+                }
+            }
+
+            printFooter(out);
+            out.close();
+        } finally {
+            session.close();
+        }
+    }
+
+    private void handleReportingReminderAction(HttpServletRequest req, HttpServletResponse resp,
+            SessionUser sessionUser, boolean previewOnly) throws IOException {
+        Set<Integer> selectedJurisdictionIds = collectSelectedJurisdictionIds(req);
+        Session session = HibernateUtil.getSessionFactory().openSession();
+        try {
+            YearMonth targetMonth = reportingReminderService.determineTargetMonth(LocalDate.now());
+            List<ReportingStatusRow> rows = reportingReminderService.loadReportingStatusRows(session, targetMonth);
+            List<ReportingStatusRow> selectedRows = new ArrayList<ReportingStatusRow>();
+            for (ReportingStatusRow row : rows) {
+                if (selectedJurisdictionIds.contains(Integer.valueOf(row.getJurisdiction().getJurisdictionId()))) {
+                    selectedRows.add(row);
+                }
+            }
+
+            if (previewOnly) {
+                renderReportingStatusPage(req, resp, sessionUser, null, false, selectedJurisdictionIds);
+                return;
+            }
+
+            Map<String, String> values = loadSettingValues();
+            String clearBaseUrl = values.get(KEY_CLEAR_EXTERNAL_URL);
+            List<String> failures = new ArrayList<String>();
+            int successCount = 0;
+            for (ReportingStatusRow row : selectedRows) {
+                Contact contact = row.getLastReporter();
+                String email = row.getLastReporterEmail();
+                if (contact == null) {
+                    failures.add(row.getJurisdiction().getDisplayLabel() + ": no reporter found.");
+                    continue;
+                }
+                if (!reportingReminderService.isValidEmail(email)) {
+                    failures.add(row.getJurisdiction().getDisplayLabel() + ": invalid email " + safe(email) + ".");
+                    continue;
+                }
+
+                String enterUrl = reportingReminderService.buildEnterUrl(clearBaseUrl, targetMonth,
+                        row.getJurisdiction().getMapLink());
+                String subject = reportingReminderService.buildReminderSubject(targetMonth);
+                String body = reportingReminderService.buildReminderBody(contact.getNameFirst(), targetMonth, enterUrl);
+                try {
+                    emailService.sendPlainTextEmail(email, subject, body);
+                    successCount++;
+                } catch (RuntimeException e) {
+                    failures.add(row.getJurisdiction().getDisplayLabel() + ": " + e.getMessage());
+                }
+            }
+
+            StringBuilder summary = new StringBuilder();
+            summary.append("Sent ").append(successCount).append(" reminder email(s).");
+            if (!failures.isEmpty()) {
+                summary.append(" Failed ").append(failures.size()).append(" reminder(s).");
+                summary.append(" ");
+                summary.append(String.join(" ", failures));
+            }
+            renderReportingStatusPage(req, resp, sessionUser, summary.toString(), !failures.isEmpty(),
+                    selectedJurisdictionIds);
+        } finally {
+            session.close();
+        }
+    }
+
+    private void handleSendClearDataRequestEmail(HttpServletRequest req, HttpServletResponse resp,
+            SessionUser sessionUser) throws IOException {
+        Map<String, String> values = loadSettingValues();
+        Session session = HibernateUtil.getSessionFactory().openSession();
+        try {
+            Integer contactId = parseRequiredInteger(req.getParameter(PARAM_CONTACT_ID), "Contact");
+            Contact contact = session.get(Contact.class, contactId);
+            if (contact == null) {
+                renderContactAdminPage(req, resp, sessionUser, "Selected contact was not found.", true);
+                return;
+            }
+            String email = contact.getEmailAddress();
+            if (!reportingReminderService.isValidEmail(email)) {
+                renderContactAdminPage(req, resp, sessionUser,
+                        "Selected contact does not have a valid email address.", true);
+                return;
+            }
+
+            String enterUrl = buildPlainEnterUrl(values.get(KEY_CLEAR_EXTERNAL_URL));
+            String subject = reportingReminderService.buildInvitationSubject();
+            String body = reportingReminderService.buildInvitationBody(contact.getNameFirst(), enterUrl);
+            emailService.sendPlainTextEmail(email, subject, body);
+            renderContactAdminPage(req, resp, sessionUser,
+                    "CLEAR data request email sent to " + reportingReminderService.formatReporterLabel(contact) + ".",
+                    false);
+        } catch (RuntimeException e) {
+            renderContactAdminPage(req, resp, sessionUser,
+                    "Unable to send CLEAR data request email: " + e.getMessage(), true);
+        } finally {
+            session.close();
+        }
+    }
+
+    private Set<Integer> collectSelectedJurisdictionIds(HttpServletRequest req) {
+        Set<Integer> selectedIds = new HashSet<Integer>();
+        String[] values = req.getParameterValues(PARAM_REMINDER_JURISDICTION_ID);
+        if (values == null) {
+            return selectedIds;
+        }
+        for (String value : values) {
+            Integer parsed = parseInteger(value);
+            if (parsed != null) {
+                selectedIds.add(parsed);
+            }
+        }
+        return selectedIds;
+    }
+
+    private String buildPlainEnterUrl(String clearBaseUrl) {
+        String baseUrl = normalize(clearBaseUrl);
+        if (baseUrl == null) {
+            return "/clear/enter";
+        }
+        if (baseUrl.endsWith("/")) {
+            return baseUrl.substring(0, baseUrl.length() - 1) + "/enter";
+        }
+        return baseUrl + "/enter";
     }
 
     private List<Contact> loadContactsForSearch(Session session, String searchText) {
