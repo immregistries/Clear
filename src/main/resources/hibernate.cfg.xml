@@ -14,5 +14,8 @@
         <mapping class="org.immregistries.clear.model.Jurisdiction"></mapping>
         <mapping class="org.immregistries.clear.model.ValidationCode"></mapping>
         <mapping class="org.immregistries.clear.model.SystemSetting"></mapping>
+        <mapping class="org.immregistries.clear.model.ClearAgreement"></mapping>
+        <mapping class="org.immregistries.clear.model.ClearJurisdictionSharingAgreement"></mapping>
+        <mapping class="org.immregistries.clear.model.ClearUserAgreementAcknowledgement"></mapping>
     </session-factory>
 </hibernate-configuration>

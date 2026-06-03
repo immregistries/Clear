@@ -22,6 +22,8 @@ import org.immregistries.clear.auth.SessionUser;
 import org.immregistries.clear.model.EntryForInterop;
 import org.immregistries.clear.model.Jurisdiction;
 import org.immregistries.clear.model.JurisdictionAccessRole;
+import org.immregistries.clear.model.ClearAgreement;
+import org.immregistries.clear.service.ClearAgreementService;
 import org.immregistries.clear.service.DashboardEstimateService;
 import org.immregistries.clear.service.DashboardEstimateService.DashboardEstimateViewModel;
 import org.immregistries.clear.service.DashboardEstimateService.MonthlyEstimateRow;
@@ -33,6 +35,7 @@ import org.immregistries.clear.servlet.maps.MapPlace;
 import org.immregistries.clear.utils.HibernateUtil;
 import org.apache.commons.lang.time.DateUtils;
 import org.hibernate.Session;
+import org.hibernate.Transaction;
 import org.hibernate.query.Query;
 
 public class ClearServlet extends HttpServlet {
@@ -46,6 +49,9 @@ public class ClearServlet extends HttpServlet {
 
     public static final String PARAM_ACTION = "action";
     public static final String ACTION_SAVE = "Save";
+    public static final String ACTION_ACKNOWLEDGE_AGREEMENT = "acknowledgeAgreement";
+    public static final String PARAM_RETURN_TO = "returnTo";
+    public static final String PARAM_AGREE = "agree";
 
     public static final String PARAM_MONTH = "month";
     public static final String PARAM_YEAR = "year";
@@ -58,6 +64,7 @@ public class ClearServlet extends HttpServlet {
 
     private final JurisdictionAccessService jurisdictionAccessService = new JurisdictionAccessService();
     private final DashboardEstimateService dashboardEstimateService = new DashboardEstimateService();
+    private final ClearAgreementService clearAgreementService = new ClearAgreementService();
 
     static {
         populationMap.put("AL", 5025369);
@@ -183,6 +190,12 @@ public class ClearServlet extends HttpServlet {
         PrintWriter out = new PrintWriter(resp.getOutputStream());
         try {
 
+            if (view.equals(VIEW_MAP) && ACTION_ACKNOWLEDGE_AGREEMENT.equals(req.getParameter(PARAM_ACTION))) {
+                handleMapAgreementAcknowledgement(req, resp, sessionUser, session, month, displayType,
+                        selectedJurisdictionMapLink);
+                return;
+            }
+
             String message = null;
             Query<Jurisdiction> jurisdictionList;
             {
@@ -240,6 +253,15 @@ public class ClearServlet extends HttpServlet {
                 return;
             }
 
+            if (view.equals(VIEW_MAP) && !adminUser
+                    && !clearAgreementService.hasUserAcknowledgedCurrentAgreement(session, sessionUser,
+                            ClearAgreementService.AGREEMENT_CODE_PEER_DATA_SHARING)) {
+                renderMapAgreementPrompt(req, out, session, sessionUser, month, displayType,
+                        selectedJurisdictionMapLink,
+                        null);
+                return;
+            }
+
             if (selectedJurisdiction == null) {
                 printHeader(out, selectedJurisdictionMapLink, sessionUser);
                 out.println("<h4>No jurisdiction access is available for your account.</h4>");
@@ -277,6 +299,9 @@ public class ClearServlet extends HttpServlet {
             }
 
             if (view.equals(VIEW_MAP)) {
+                out.println(
+                        "<p class=\"text-muted\">" + PageShellSupport.escapeHtml(ClearAgreementService.REMINDER_TEXT)
+                                + "</p>");
 
                 // get highest and lowest test participant numbers
                 int highestDisplayCount = -1;
@@ -438,7 +463,10 @@ public class ClearServlet extends HttpServlet {
                         updatesTotal += efi.getCountUpdate();
                         queriesTotal += efi.getCountQuery();
                         out.println("      <tr>");
-                        out.println("           <td style=\"width:20%\">" + jurisdiction.getDisplayLabel() + "</td>");
+                        String displayLabel = clearAgreementService.getDisplayJurisdictionLabel(session, jurisdiction,
+                                sessionUser);
+                        out.println("           <td style=\"width:20%\">" + PageShellSupport.escapeHtml(displayLabel)
+                                + "</td>");
                         out.println("           <td class=\"formatted-number\" style=\"width:20%\">" + population
                                 + "</td>");
                         out.println("           <td class=\"formatted-number\" style=\"width:20%\">"
@@ -578,6 +606,85 @@ public class ClearServlet extends HttpServlet {
         }
         out.println("   </select>");
         out.println("</form>");
+    }
+
+    private void handleMapAgreementAcknowledgement(HttpServletRequest req, HttpServletResponse resp,
+            SessionUser sessionUser, Session session, Calendar month, String displayType,
+            String selectedJurisdictionMapLink) throws IOException {
+        if (!"on".equalsIgnoreCase(req.getParameter(PARAM_AGREE))) {
+            PrintWriter out = new PrintWriter(resp.getOutputStream());
+            renderMapAgreementPrompt(req, out, session, sessionUser, month, displayType, selectedJurisdictionMapLink,
+                    "You must agree to continue to detailed map results.");
+            out.close();
+            return;
+        }
+
+        Transaction tx = null;
+        try {
+            tx = session.beginTransaction();
+            clearAgreementService.acknowledgeAgreement(session, sessionUser, req,
+                    ClearAgreementService.AGREEMENT_CODE_PEER_DATA_SHARING);
+            tx.commit();
+        } catch (Exception e) {
+            if (tx != null && tx.isActive()) {
+                tx.rollback();
+            }
+        }
+
+        String returnTo = req.getParameter(PARAM_RETURN_TO);
+        if (returnTo == null || !returnTo.startsWith("/clear/")) {
+            returnTo = buildMapReturnPath(month, displayType, selectedJurisdictionMapLink);
+        }
+        resp.sendRedirect(returnTo);
+    }
+
+    private void renderMapAgreementPrompt(HttpServletRequest req, PrintWriter out, Session session,
+            SessionUser sessionUser, Calendar month, String displayType, String selectedJurisdictionMapLink,
+            String message) {
+        ClearAgreement agreement = clearAgreementService.getActiveAgreement(session,
+                ClearAgreementService.AGREEMENT_CODE_PEER_DATA_SHARING);
+        String title = agreement == null ? ClearAgreementService.DEFAULT_TITLE : agreement.getTitle();
+        String text = agreement == null ? ClearAgreementService.DEFAULT_TEXT : agreement.getAgreementText();
+
+        printHeader(out, selectedJurisdictionMapLink, sessionUser);
+        out.println("<h2>" + PageShellSupport.escapeHtml(title) + "</h2>");
+        out.println("<div class=\"app-section\" style=\"max-width:760px;\">");
+        for (String paragraph : text.split("\\n\\n")) {
+            out.println("<p>" + PageShellSupport.escapeHtml(paragraph) + "</p>");
+        }
+        if (message != null && !message.trim().isEmpty()) {
+            out.println("<p class=\"text-error\">" + PageShellSupport.escapeHtml(message) + "</p>");
+        }
+        out.println("<form method=\"post\" action=\"/clear/dashboard\">");
+        out.println("<input type=\"hidden\" name=\"" + PARAM_VIEW + "\" value=\"" + VIEW_MAP + "\">");
+        out.println("<input type=\"hidden\" name=\"" + PARAM_ACTION + "\" value=\"" + ACTION_ACKNOWLEDGE_AGREEMENT
+                + "\">");
+        out.println("<input type=\"hidden\" name=\"" + PARAM_MONTH + "\" value=\""
+                + new SimpleDateFormat("MMMM yyyy").format(month.getTime()) + "\">");
+        out.println("<input type=\"hidden\" name=\"" + PARAM_DISPLAY_TYPE + "\" value=\"" + displayType
+                + "\">");
+        out.println("<input type=\"hidden\" name=\"" + PARAM_JURISDICTION + "\" value=\""
+                + PageShellSupport.escapeHtml(selectedJurisdictionMapLink) + "\">");
+        out.println("<input type=\"hidden\" name=\"" + PARAM_RETURN_TO + "\" value=\""
+                + PageShellSupport.escapeHtml(buildMapReturnPath(month, displayType, selectedJurisdictionMapLink))
+                + "\">");
+        out.println("<label><input type=\"checkbox\" name=\"" + PARAM_AGREE + "\"> "
+                + PageShellSupport.escapeHtml(ClearAgreementService.DEFAULT_CHECKBOX_TEXT) + "</label>");
+        out.println("<div style=\"margin-top:16px;\">");
+        out.println("<button class=\"btn btn-primary\" type=\"submit\">Agree and View Results</button>");
+        out.println("</div>");
+        out.println("</form>");
+        out.println(
+                "<p style=\"margin-top:16px;\"><a href=\"/clear/dashboard?view=home\">Return to Dashboard Home</a></p>");
+        out.println("</div>");
+        printFooter(out);
+    }
+
+    private String buildMapReturnPath(Calendar month, String displayType, String selectedJurisdictionMapLink) {
+        String monthText = new SimpleDateFormat("MMMM yyyy").format(month.getTime()).replace(" ", "%20");
+        return "/clear/dashboard?view=" + VIEW_MAP + "&" + PARAM_MONTH + "=" + monthText + "&"
+                + PARAM_DISPLAY_TYPE + "=" + displayType + "&" + PARAM_JURISDICTION + "="
+                + selectedJurisdictionMapLink;
     }
 
     private void printViewMode(PrintWriter out, HashMap<String, EntryForInterop> entryForInteropMap,

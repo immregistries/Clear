@@ -63,6 +63,38 @@ public class ResultsServletTest {
         assertEquals("42", method.invoke(null, 42L));
     }
 
+    @Test
+    public void shouldRenderMaskedDisplayLabelWhenProvided() throws Exception {
+        Class<?> rowClass = Class.forName("org.immregistries.clear.servlet.ResultsServlet$RankedRow");
+        Constructor<?> constructor = rowClass.getDeclaredConstructor();
+        constructor.setAccessible(true);
+
+        Object row = constructor.newInstance();
+        setField(rowClass, row, "jurisdiction", jurisdiction("WA", "Washington IIS"));
+        setField(rowClass, row, "displayLabel", "Not Shared");
+        setField(rowClass, row, "updates", Integer.valueOf(100));
+
+        List<?> rows = Arrays.asList(row);
+        Comparator<Object> comparator = new Comparator<Object>() {
+            @Override
+            public int compare(Object left, Object right) {
+                return Integer.compare(getIntField(rowClass, left, "updates"), getIntField(rowClass, right, "updates"));
+            }
+        };
+
+        Method method = ResultsServlet.class.getDeclaredMethod("rankAndRenderTable", List.class, Comparator.class,
+                String.class, PrintWriter.class, String.class);
+        method.setAccessible(true);
+
+        StringWriter buffer = new StringWriter();
+        PrintWriter out = new PrintWriter(buffer);
+        method.invoke(null, rows, comparator, "", out, "updates");
+        out.flush();
+
+        String html = buffer.toString();
+        assertTrue(html.contains("<td>1</td><td>Not Shared</td><td>100</td>"));
+    }
+
     private static Jurisdiction jurisdiction(String mapLink, String displayLabel) {
         Jurisdiction jurisdiction = new Jurisdiction();
         jurisdiction.setMapLink(mapLink);

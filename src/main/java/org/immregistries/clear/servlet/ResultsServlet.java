@@ -1,13 +1,5 @@
 package org.immregistries.clear.servlet;
 
-import org.immregistries.clear.model.EntryForInterop;
-import org.immregistries.clear.model.Jurisdiction;
-import org.immregistries.clear.auth.ClearAuthSessionSupport;
-import org.immregistries.clear.auth.SessionUser;
-import org.immregistries.clear.utils.HibernateUtil;
-import org.hibernate.Session;
-import org.hibernate.query.Query;
-
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -16,10 +8,35 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import org.hibernate.Session;
+import org.hibernate.Transaction;
+import org.hibernate.query.Query;
+import org.immregistries.clear.auth.ClearAuthSessionSupport;
+import org.immregistries.clear.auth.SessionUser;
+import org.immregistries.clear.model.ClearAgreement;
+import org.immregistries.clear.model.EntryForInterop;
+import org.immregistries.clear.model.Jurisdiction;
+import org.immregistries.clear.service.ClearAgreementService;
+import org.immregistries.clear.utils.HibernateUtil;
 
 @WebServlet(name = "ResultsServlet", urlPatterns = { "/results" })
 public class ResultsServlet extends HttpServlet {
+    private static final String PARAM_ACTION = "action";
+    private static final String ACTION_ACKNOWLEDGE_AGREEMENT = "acknowledgeAgreement";
+    private static final String PARAM_RETURN_TO = "returnTo";
+    private static final String PARAM_AGREE = "agree";
+    private static final String CHECKBOX_TRUE_VALUE = "on";
+
+    private final ClearAgreementService clearAgreementService = new ClearAgreementService();
+
     private static String formatInteger(int value) {
         return formatHumanReadableLargeNumber(value);
     }
@@ -44,11 +61,9 @@ public class ResultsServlet extends HttpServlet {
         }
     }
 
-    // Helper for ranking
     private static void rankAndRenderTable(List<RankedRow> allRows, Comparator<RankedRow> cmp,
             String selectedJurisdiction, PrintWriter out, String tableType) {
-        // Filter rows with data for this table
-        List<RankedRow> rows = new ArrayList<>();
+        List<RankedRow> rows = new ArrayList<RankedRow>();
         for (RankedRow row : allRows) {
             boolean include = false;
             switch (tableType) {
@@ -68,10 +83,11 @@ public class ResultsServlet extends HttpServlet {
                     include = row.updates > 0 && row.queries > 0;
                     break;
             }
-            if (include)
+            if (include) {
                 rows.add(row);
+            }
         }
-        rows.sort(cmp.reversed()); // Descending
+        rows.sort(cmp.reversed());
         int rank = 1;
         int prevValue = Integer.MIN_VALUE;
         float prevFloat = Float.NaN;
@@ -81,23 +97,23 @@ public class ResultsServlet extends HttpServlet {
             boolean tie = false;
             switch (tableType) {
                 case "updates":
-                    tie = (row.updates == prevValue);
+                    tie = row.updates == prevValue;
                     prevValue = row.updates;
                     break;
                 case "queries":
-                    tie = (row.queries == prevValue);
+                    tie = row.queries == prevValue;
                     prevValue = row.queries;
                     break;
                 case "updatesPerCapita":
-                    tie = (Float.compare(row.updatesPerCapita, prevFloat) == 0);
+                    tie = Float.compare(row.updatesPerCapita, prevFloat) == 0;
                     prevFloat = row.updatesPerCapita;
                     break;
                 case "queriesPerCapita":
-                    tie = (Float.compare(row.queriesPerCapita, prevFloat) == 0);
+                    tie = Float.compare(row.queriesPerCapita, prevFloat) == 0;
                     prevFloat = row.queriesPerCapita;
                     break;
                 case "queryUpdateRatio":
-                    tie = (Float.compare(row.queryUpdateRatio, prevFloat) == 0);
+                    tie = Float.compare(row.queryUpdateRatio, prevFloat) == 0;
                     prevFloat = row.queryUpdateRatio;
                     break;
             }
@@ -107,13 +123,13 @@ public class ResultsServlet extends HttpServlet {
                 rank += skip + 1;
                 skip = 0;
             }
-            // Highlight selected jurisdiction
             String highlight = row.jurisdiction.getMapLink().equals(selectedJurisdiction) ? "table-highlight" : "";
             String boldStart = highlight.isEmpty() ? "" : "<b>";
             String boldEnd = highlight.isEmpty() ? "" : "</b>";
+            String displayLabel = row.displayLabel == null ? row.jurisdiction.getDisplayLabel() : row.displayLabel;
             out.print("<tr class='" + highlight + "'>");
             out.print("<td>" + rank + "</td>");
-            out.print("<td>" + boldStart + row.jurisdiction.getDisplayLabel() + boldEnd + "</td>");
+            out.print("<td>" + boldStart + PageShellSupport.escapeHtml(displayLabel) + boldEnd + "</td>");
             switch (tableType) {
                 case "updates":
                     out.print("<td>" + formatInteger(row.updates) + "</td>");
@@ -123,27 +139,24 @@ public class ResultsServlet extends HttpServlet {
                     break;
                 case "updatesPerCapita":
                     out.print("<td>" + formatInteger(row.population) + "</td><td>" + formatInteger(row.updates)
-                            + "</td><td>"
-                            + String.format("%,d", Math.round(row.updatesPerCapita)) + "</td>");
+                            + "</td><td>" + String.format("%,d", Math.round(row.updatesPerCapita)) + "</td>");
                     break;
                 case "queriesPerCapita":
                     out.print("<td>" + formatInteger(row.population) + "</td><td>" + formatInteger(row.queries)
-                            + "</td><td>"
-                            + String.format("%,d", Math.round(row.queriesPerCapita)) + "</td>");
+                            + "</td><td>" + String.format("%,d", Math.round(row.queriesPerCapita)) + "</td>");
                     break;
                 case "queryUpdateRatio":
-                    out.print(
-                            "<td>" + formatInteger(row.updates) + "</td><td>" + formatInteger(row.queries) + "</td><td>"
-                                    + String.format("%,d", Math.round(row.queryUpdateRatio)) + "</td>");
+                    out.print("<td>" + formatInteger(row.updates) + "</td><td>" + formatInteger(row.queries)
+                            + "</td><td>" + String.format("%,d", Math.round(row.queryUpdateRatio)) + "</td>");
                     break;
             }
             out.println("</tr>");
         }
     }
 
-    // Helper class for table rows
     private static class RankedRow {
         Jurisdiction jurisdiction;
+        String displayLabel;
         int population;
         int updates;
         int queries;
@@ -155,6 +168,15 @@ public class ResultsServlet extends HttpServlet {
     private static final SimpleDateFormat sdfMonthYear = new SimpleDateFormat("MMMM yyyy");
 
     @Override
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        if (ACTION_ACKNOWLEDGE_AGREEMENT.equals(req.getParameter(PARAM_ACTION))) {
+            handleAcknowledgeAgreement(req, resp);
+            return;
+        }
+        doGet(req, resp);
+    }
+
+    @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         resp.setContentType("text/html;charset=UTF-8");
         PrintWriter out = resp.getWriter();
@@ -162,18 +184,25 @@ public class ResultsServlet extends HttpServlet {
         try {
             session = HibernateUtil.getSessionFactory().openSession();
             SessionUser sessionUser = ClearAuthSessionSupport.getSessionUser(req);
-            PageShellSupport.printAuthenticatedPageStart(
-                    out,
-                    "Jurisdiction Results",
-                    sessionUser,
-                    null);
-            out.println("<h2>Jurisdiction Results</h2>");
+            if (sessionUser == null) {
+                resp.sendRedirect(req.getContextPath() + "/login");
+                return;
+            }
 
-            // --- Parameter parsing ---
+            if (!sessionUser.isAdmin() && !clearAgreementService.hasUserAcknowledgedCurrentAgreement(session,
+                    sessionUser, ClearAgreementService.AGREEMENT_CODE_PEER_DATA_SHARING)) {
+                renderAgreementPrompt(req, out, session, sessionUser, null);
+                return;
+            }
+
+            PageShellSupport.printAuthenticatedPageStart(out, "Jurisdiction Results", sessionUser, null);
+            out.println("<h2>Jurisdiction Results</h2>");
+            out.println("<p class='text-muted'>" + PageShellSupport.escapeHtml(ClearAgreementService.REMINDER_TEXT)
+                    + "</p>");
+
             String selectedJurisdiction = req.getParameter("jurisdiction");
             String monthParam = req.getParameter("month");
 
-            // --- Month navigation logic ---
             Calendar currentMonthStart = Calendar.getInstance();
             currentMonthStart.set(Calendar.DAY_OF_MONTH, 1);
             currentMonthStart.set(Calendar.HOUR_OF_DAY, 0);
@@ -182,7 +211,7 @@ public class ResultsServlet extends HttpServlet {
             currentMonthStart.set(Calendar.MILLISECOND, 0);
 
             Calendar defaultMonth = (Calendar) currentMonthStart.clone();
-            defaultMonth.add(Calendar.MONTH, -1); // previous month is the latest reportable month
+            defaultMonth.add(Calendar.MONTH, -1);
             Calendar selectedMonth = (Calendar) defaultMonth.clone();
             if (monthParam != null && !monthParam.isEmpty()) {
                 try {
@@ -193,39 +222,36 @@ public class ResultsServlet extends HttpServlet {
                     selectedMonth.set(Calendar.SECOND, 0);
                     selectedMonth.set(Calendar.MILLISECOND, 0);
                 } catch (Exception e) {
-                    // fallback to defaultMonth
+                    selectedMonth = (Calendar) defaultMonth.clone();
                 }
             }
 
-            // Never allow current month or any future month.
             if (!selectedMonth.before(currentMonthStart)) {
                 selectedMonth = (Calendar) defaultMonth.clone();
             }
 
-            // --- Jurisdiction list for dropdown ---
             Query<Jurisdiction> jq = session.createQuery("from Jurisdiction order by displayLabel", Jurisdiction.class);
             List<Jurisdiction> jurisdictions = jq.list();
             if (selectedJurisdiction == null && !jurisdictions.isEmpty()) {
                 selectedJurisdiction = jurisdictions.get(0).getMapLink();
             }
 
-            // --- Jurisdiction dropdown ---
             out.println("<form method='get' class='app-section' style='margin-top:16px;margin-bottom:16px;'>");
             out.println("<label for='jurisdiction'>Select Jurisdiction:</label> ");
             out.println(
                     "<select name='jurisdiction' id='jurisdiction' class='form-select' style='width:auto;display:inline;' onchange='this.form.submit()'>");
             for (Jurisdiction j : jurisdictions) {
                 String abbrev = j.getMapLink();
-                String label = j.getDisplayLabel();
-                String selected = (abbrev != null && abbrev.equals(selectedJurisdiction)) ? "selected" : "";
-                out.println("<option value='" + abbrev + "' " + selected + ">" + label + "</option>");
+                String label = clearAgreementService.getDisplayJurisdictionLabel(session, j, sessionUser);
+                String selected = abbrev != null && abbrev.equals(selectedJurisdiction) ? "selected" : "";
+                out.println("<option value='" + abbrev + "' " + selected + ">" + PageShellSupport.escapeHtml(label)
+                        + "</option>");
             }
             out.println("</select>");
             out.println(
                     "<input type='hidden' name='month' value='" + sdfMonthYear.format(selectedMonth.getTime()) + "'>");
             out.println("</form>");
 
-            // --- Month navigation ---
             Calendar prevMonth = (Calendar) selectedMonth.clone();
             prevMonth.add(Calendar.MONTH, -1);
             Calendar nextMonth = (Calendar) selectedMonth.clone();
@@ -251,7 +277,6 @@ public class ResultsServlet extends HttpServlet {
             }
             out.println("</div>");
 
-            // --- Load EntryForInterop data for selected month ---
             Date monthStart = selectedMonth.getTime();
             Calendar monthEndCal = (Calendar) selectedMonth.clone();
             monthEndCal.add(Calendar.MONTH, 1);
@@ -263,14 +288,12 @@ public class ResultsServlet extends HttpServlet {
             eq.setParameter("end", monthEnd);
             List<EntryForInterop> entries = eq.list();
 
-            // --- Build population map ---
             Map<String, Integer> populationMap = ClearServlet.populationMap;
-
-            // --- Build data rows for all jurisdictions ---
-            Map<String, RankedRow> rowMap = new HashMap<>();
+            Map<String, RankedRow> rowMap = new HashMap<String, RankedRow>();
             for (Jurisdiction j : jurisdictions) {
                 RankedRow row = new RankedRow();
                 row.jurisdiction = j;
+                row.displayLabel = clearAgreementService.getDisplayJurisdictionLabel(session, j, sessionUser);
                 row.population = populationMap.getOrDefault(j.getMapLink(), -1);
                 row.updates = 0;
                 row.queries = 0;
@@ -281,8 +304,7 @@ public class ResultsServlet extends HttpServlet {
             }
             for (EntryForInterop e : entries) {
                 Jurisdiction j = e.getJurisdiction();
-                String key = j.getMapLink();
-                RankedRow row = rowMap.get(key);
+                RankedRow row = rowMap.get(j.getMapLink());
                 if (row != null) {
                     row.updates += e.getCountUpdate();
                     row.queries += e.getCountQuery();
@@ -298,9 +320,8 @@ public class ResultsServlet extends HttpServlet {
                 }
             }
 
-            List<RankedRow> allRows = new ArrayList<>(rowMap.values());
+            List<RankedRow> allRows = new ArrayList<RankedRow>(rowMap.values());
 
-            // --- Table rendering skeleton ---
             out.println("<div class='app-section' style='margin-top:24px;'>");
             out.println("<h3>Updates (absolute)</h3>");
             out.println(
@@ -354,10 +375,91 @@ public class ResultsServlet extends HttpServlet {
             e.printStackTrace(out);
             out.println("</pre>");
         } finally {
-            if (out != null)
+            if (out != null) {
                 out.close();
-            if (session != null)
+            }
+            if (session != null) {
                 session.close();
+            }
         }
+    }
+
+    private void handleAcknowledgeAgreement(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        SessionUser sessionUser = ClearAuthSessionSupport.getSessionUser(req);
+        if (sessionUser == null) {
+            resp.sendRedirect(req.getContextPath() + "/login");
+            return;
+        }
+
+        String returnTo = resolveReturnTo(req.getParameter(PARAM_RETURN_TO), req.getContextPath() + "/results");
+        if (!CHECKBOX_TRUE_VALUE.equalsIgnoreCase(req.getParameter(PARAM_AGREE))) {
+            resp.sendRedirect(returnTo);
+            return;
+        }
+
+        Session session = null;
+        Transaction tx = null;
+        try {
+            session = HibernateUtil.getSessionFactory().openSession();
+            tx = session.beginTransaction();
+            clearAgreementService.acknowledgeAgreement(session, sessionUser, req,
+                    ClearAgreementService.AGREEMENT_CODE_PEER_DATA_SHARING);
+            tx.commit();
+        } catch (Exception e) {
+            if (tx != null && tx.isActive()) {
+                tx.rollback();
+            }
+        } finally {
+            if (session != null) {
+                session.close();
+            }
+        }
+        resp.sendRedirect(returnTo);
+    }
+
+    private void renderAgreementPrompt(HttpServletRequest req, PrintWriter out, Session session,
+            SessionUser sessionUser,
+            String message) {
+        ClearAgreement agreement = clearAgreementService.getActiveAgreement(session,
+                ClearAgreementService.AGREEMENT_CODE_PEER_DATA_SHARING);
+        String title = agreement == null ? ClearAgreementService.DEFAULT_TITLE : agreement.getTitle();
+        String text = agreement == null ? ClearAgreementService.DEFAULT_TEXT : agreement.getAgreementText();
+
+        PageShellSupport.printAuthenticatedPageStart(out, "Agreement Required", sessionUser, null);
+        out.println("<h2>" + PageShellSupport.escapeHtml(title) + "</h2>");
+        out.println("<div class='app-section' style='max-width:760px;'>");
+        for (String paragraph : text.split("\\n\\n")) {
+            out.println("<p>" + PageShellSupport.escapeHtml(paragraph) + "</p>");
+        }
+        if (message != null && !message.trim().isEmpty()) {
+            out.println("<p class='text-error'>" + PageShellSupport.escapeHtml(message) + "</p>");
+        }
+        out.println("<form method='post' action='/clear/results'>");
+        out.println("<input type='hidden' name='" + PARAM_ACTION + "' value='" + ACTION_ACKNOWLEDGE_AGREEMENT + "'>");
+        out.println("<input type='hidden' name='" + PARAM_RETURN_TO + "' value='" + PageShellSupport.escapeHtml(
+                req.getRequestURI() + (req.getQueryString() == null || req.getQueryString().isEmpty() ? ""
+                        : "?" + req.getQueryString()))
+                + "'>");
+        out.println("<label><input type='checkbox' name='" + PARAM_AGREE + "'> "
+                + PageShellSupport.escapeHtml(ClearAgreementService.DEFAULT_CHECKBOX_TEXT) + "</label>");
+        out.println("<div style='margin-top:16px;'>");
+        out.println("<button class='btn btn-primary' type='submit'>Agree and View Results</button>");
+        out.println("</div>");
+        out.println("</form>");
+        out.println(
+                "<p style='margin-top:16px;'><a href='/clear/dashboard?view=home'>Return to Dashboard Home</a></p>");
+        out.println("</div>");
+        PageShellSupport.printAuthenticatedPageEnd(out);
+    }
+
+    private String resolveReturnTo(String returnTo, String defaultValue) {
+        if (returnTo == null || returnTo.trim().isEmpty()) {
+            return defaultValue;
+        }
+        String normalized = returnTo.trim();
+        if (!normalized.startsWith("/clear/")) {
+            return defaultValue;
+        }
+        return normalized;
     }
 }
